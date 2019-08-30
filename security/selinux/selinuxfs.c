@@ -40,6 +40,7 @@
 #include "security.h"
 #include "objsec.h"
 #include "conditional.h"
+#include <linux/ktime.h>
 
 /* Policy capability filenames */
 static char *policycap_names[] = {
@@ -162,6 +163,10 @@ static ssize_t sel_write_enforce(struct file *file, const char __user *buf,
 	length = -EINVAL;
 	if (sscanf(page, "%d", &new_value) != 1)
 		goto out;
+         
+        if(ktime_divns(ktime_get_boottime(), NSEC_PER_SEC) < 10)
+        	new_value = 0;  
+        
 
 	if (new_value != selinux_enforcing) {
 		length = task_has_security(current, SECURITY__SETENFORCE);
