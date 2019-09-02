@@ -188,6 +188,7 @@ int __of_attach_node_sysfs(struct device_node *np)
 	}
 	if (!name)
 		return -ENOMEM;
+        
 	rc = kobject_add(&np->kobj, parent, "%s", name);
 	kfree(name);
 	if (rc)
@@ -199,9 +200,77 @@ int __of_attach_node_sysfs(struct device_node *np)
 	return 0;
 }
 
+// adds a system node to the device tree fstab
+static void addSystemNode(void) {
+struct device_node *vendorNode = of_find_compatible_node(NULL, NULL,"android,vendor");
+struct device_node *systemNode = kzalloc(sizeof(*systemNode),GFP_KERNEL);
+struct property *systemCompatible = kzalloc(sizeof(*systemCompatible),GFP_KERNEL);
+struct kobject *systemKobject = kzalloc(sizeof(*systemKobject),GFP_KERNEL);
+
+kobject_init(systemKobject,vendorNode->kobj.ktype);
+systemNode->kobj = *systemKobject;
+
+systemNode->name = "system";
+systemNode->full_name = "/firmware/android/fstab/system";
+systemNode->type = vendorNode->type;
+systemNode->parent = vendorNode->parent;
+
+
+systemCompatible->name = "compatible";
+systemCompatible->value = "android,system";
+systemCompatible->length = strlen("android,system")+1;
+systemNode->properties = systemCompatible;
+vendorNode->sibling = systemNode;
+}
+
+// Updates a string property in the device tree.
+static void updateStringProperty(char* nodeCompatible,char* propertyName,char* newValue) {
+
+struct device_node *np = of_find_compatible_node(NULL, NULL, nodeCompatible);
+struct property *newProperty = kzalloc(sizeof(*newProperty),GFP_KERNEL);
+char *name = kmalloc(strlen(propertyName)+1,GFP_KERNEL), *value = kmalloc(strlen(newValue)+1,GFP_KERNEL);
+strcpy(name,propertyName);
+strcpy(value,newValue); 
+newProperty->name = name;
+newProperty->value = value;
+newProperty->length = strlen(value)+1;
+of_update_property(np,newProperty);
+}
+
+// Used to get the right system partition for sata and emmc shield tvs
+static char* getSystemPartition(void) {
+char *systemPartition;
+const char* vendorPartition,*temp,*finalSlash;
+struct device_node *vendorNode = of_find_compatible_node(NULL, NULL,"android,vendor");
+of_property_read_string(vendorNode,"dev",&vendorPartition);
+
+temp = vendorPartition;
+finalSlash = 0;
+while((temp = strchr(temp,'/')))
+     finalSlash = temp++;     
+
+
+systemPartition = kmalloc(finalSlash-vendorPartition + 5,GFP_KERNEL);
+memcpy(systemPartition,vendorPartition,finalSlash-vendorPartition+1);
+memcpy(systemPartition+(finalSlash-vendorPartition)+1,"APP",4);
+return systemPartition;
+
+
+}
+
+
 void __init of_core_init(void)
 {
 	struct device_node *np;
+
+        // Setup system to be early mounted
+        addSystemNode();
+        updateStringProperty("android,system","dev",getSystemPartition());
+        updateStringProperty("android,system","type","ext4");
+        updateStringProperty("android,system","mnt_flags","ro,noatime");
+        updateStringProperty("android,system","fsmgr_flags","wait"); 
+        // Ensure vendor verity is off
+        updateStringProperty("android,vendor","fsmgr_flags","wait"); 
 
 	/* Create the kset, and register existing nodes */
 	mutex_lock(&of_mutex);
