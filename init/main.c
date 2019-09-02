@@ -353,6 +353,59 @@ static inline void setup_nr_cpu_ids(void) { }
 static inline void smp_prepare_cpus(unsigned int maxcpus) { }
 #endif
 
+
+int isExactMatch(char* text,char* cPos, char* remove) {
+if((cPos-1 < text || *(cPos-1) == ' ') && (cPos+strlen(remove)-1 >= text+strlen(text)-1 || *(cPos+strlen(remove)) == ' '))
+return 1;
+return 0; 
+}
+
+
+// removes all occurences of string remove in string text
+static void __init removeCommandTag(char* text, char* remove) {
+ char* removeStart = strstr(text,remove),*removeEnd;
+ if(!removeStart)
+   return;
+
+if(!strchr(remove,'=') && !isExactMatch(text,removeStart,remove)) {
+if(removeStart+strlen(remove) < text+strlen(text)-1)
+removeCommandTag(removeStart+strlen(remove),remove);
+return;
+}
+
+ removeEnd = strchr(removeStart,' ');
+ if(!removeEnd)
+    *(--removeStart) = '\0';
+
+
+ else{
+    memmove(removeStart,removeEnd+1,strlen(removeEnd+1)+1);
+    removeCommandTag(removeStart,remove);
+}
+}
+
+// removes a space delimited set of arguments from the command line
+static void __init removeBootArgs(char *command_line, char* removeFlags) {
+
+char* delimiter = strchr(removeFlags,' ');
+char currentTag[50];
+
+if(delimiter){
+memcpy(currentTag,removeFlags,delimiter-removeFlags);
+currentTag[delimiter-removeFlags] = '\0';
+removeCommandTag(command_line,currentTag);
+removeCommandTag(boot_command_line,currentTag);
+removeBootArgs(command_line,++delimiter);
+}
+else{
+removeCommandTag(command_line,removeFlags);
+removeCommandTag(boot_command_line,removeFlags);
+}
+
+}
+
+
+
 /*
  * We need to store the untouched command line for future reference.
  * We also need to store the touched command line since the parameter
@@ -361,13 +414,20 @@ static inline void smp_prepare_cpus(unsigned int maxcpus) { }
  */
 static void __init setup_command_line(char *command_line)
 {
+        // console=ttyUSB0,115200n8
+        char* extras = "android.kerneltype=recovery";
+        int extLen = strlen(extras);
+
 	saved_command_line =
-		memblock_virt_alloc(strlen(boot_command_line) + 1, 0);
+		memblock_virt_alloc(strlen(boot_command_line) + extLen + 1, 0);
 	initcall_command_line =
-		memblock_virt_alloc(strlen(boot_command_line) + 1, 0);
-	static_command_line = memblock_virt_alloc(strlen(command_line) + 1, 0);
+		memblock_virt_alloc(strlen(boot_command_line) + extLen + 1, 0);
+	static_command_line = memblock_virt_alloc(strlen(command_line) + extLen + 1, 0);
+
 	strcpy(saved_command_line, boot_command_line);
+        strcat(saved_command_line,extras);
 	strcpy(static_command_line, command_line);
+        strcat(static_command_line,extras);
 }
 
 /*
@@ -506,6 +566,7 @@ asmlinkage __visible void __init start_kernel(void)
 	pr_notice("%s", linux_banner);
 	setup_arch(&command_line);
 	mm_init_cpumask(&init_mm);
+        removeBootArgs(command_line,"android.kerneltype= skip_initramfs ro root= init=/init");
 	setup_command_line(command_line);
 	setup_nr_cpu_ids();
 	setup_per_cpu_areas();
@@ -515,7 +576,7 @@ asmlinkage __visible void __init start_kernel(void)
 	build_all_zonelists(NULL, NULL);
 	page_alloc_init();
 
-	pr_notice("Kernel command line: %s\n", boot_command_line);
+	pr_notice("Kernel command line: %s\n", saved_command_line);
 	parse_early_param();
 	after_dashes = parse_args("Booting kernel",
 				  static_command_line, __start___param,
