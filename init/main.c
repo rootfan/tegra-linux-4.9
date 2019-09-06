@@ -355,9 +355,7 @@ static inline void smp_prepare_cpus(unsigned int maxcpus) { }
 
 
 int isExactMatch(char* text,char* cPos, char* remove) {
-if((cPos-1 < text || *(cPos-1) == ' ') && (cPos+strlen(remove)-1 >= text+strlen(text)-1 || *(cPos+strlen(remove)) == ' '))
-return 1;
-return 0; 
+return (cPos-1 < text || *(cPos-1) == ' ') && (cPos+strlen(remove)-1 >= text+strlen(text)-1 || *(cPos+strlen(remove)) == ' '); 
 }
 
 
@@ -376,7 +374,6 @@ return;
  removeEnd = strchr(removeStart,' ');
  if(!removeEnd)
     *(--removeStart) = '\0';
-
 
  else{
     memmove(removeStart,removeEnd+1,strlen(removeEnd+1)+1);
