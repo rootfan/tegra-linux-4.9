@@ -252,19 +252,6 @@ memcpy(systemPartition+(finalSlash-vendorPartition)+1,"APP",4);
 return systemPartition;
 }
 
-// adds 2.22 GHz to the CPU frequency table
-void setupOverclockFrequencies(void) 
-{
-struct device_node *scaling_data =  of_find_compatible_node(NULL, NULL, "nvidia,tegra210-cpufreq")->child;
-u32 length = scaling_data->properties->length,index=0,*freqs= kzalloc(length + 8,GFP_KERNEL);
-of_property_read_u32_array(scaling_data,"freq-table", freqs, length / 4);
-freqs[length/4] = 2116500;
-freqs[length/4+1] = 2218500;
-for(index = 0; index <= length / 4 + 1; ++index)
-   freqs[index] = cpu_to_be32(freqs[index]); 
-of_update_property(scaling_data,memcpy(kmalloc(sizeof(struct property),GFP_KERNEL),&((struct property){.name="freq-table",.length=length+8,.value=freqs}),sizeof(struct property)));
-}
-
 void devTreeMods(void) 
 {
         // Setup system to be early mounted
@@ -274,12 +261,8 @@ void devTreeMods(void)
         updateStringProperty("android,system","mnt_flags","ro,noatime");
         updateStringProperty("android,system","fsmgr_flags","wait"); 
         // Ensure vendor verity is off
-        updateStringProperty("android,vendor","fsmgr_flags","wait");
-        setupOverclockFrequencies();
-
-         
+        updateStringProperty("android,vendor","fsmgr_flags","wait");         
 }
-
 
 void __init of_core_init(void)
 {
