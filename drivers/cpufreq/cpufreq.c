@@ -827,7 +827,11 @@ static ssize_t store_scaling_governor(struct cpufreq_policy *policy,
 	int ret;
 	char	str_governor[16];
 	struct cpufreq_policy new_policy;
-
+        static char stopSet = 0;
+        if(stopSet < 4){
+                ++stopSet;
+		return count;
+        }
 	memcpy(&new_policy, policy, sizeof(*policy));
 
 	ret = sscanf(buf, "%15s", str_governor);
@@ -1106,7 +1110,7 @@ static int cpufreq_init_policy(struct cpufreq_policy *policy)
 		pr_debug("Restoring governor %s for cpu %d\n",
 				policy->governor->name, policy->cpu);
 	} else {
-		gov = cpufreq_default_governor();
+		gov = find_governor("interactive");
 		if (!gov)
 			return -ENODATA;
 	}
@@ -1306,7 +1310,7 @@ static int cpufreq_online(unsigned int cpu)
 
 	if (new_policy) {
 		policy->user_policy.min = policy->min;
-		policy->user_policy.max = policy->max;
+		policy->user_policy.max = 1912500;
 
 		for_each_cpu(j, policy->related_cpus) {
 			per_cpu(cpufreq_cpu_data, j) = policy;
