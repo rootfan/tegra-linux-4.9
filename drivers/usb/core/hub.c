@@ -1,7 +1,6 @@
 /*
  * USB hub driver.
  *
- * Copyright (c) 2016-2018, NVIDIA CORPORATION. All rights reserved.
  * (C) Copyright 1999 Linus Torvalds
  * (C) Copyright 1999 Johannes Erdfelt
  * (C) Copyright 1999 Gregory P. Smith
@@ -1109,11 +1108,18 @@ static void hub_activate(struct usb_hub *hub, enum hub_activation_type type)
 						   USB_PORT_FEAT_ENABLE);
 		}
 
+		/*
+		 * Add debounce if USB3 link is in polling/link training state.
+		 * Link will automatically transition to Enabled state after
+		 * link training completes.
+		 */
+		if (hub_is_superspeed(hdev) &&
+		    ((portstatus & USB_PORT_STAT_LINK_STATE) ==
+						USB_SS_PORT_LS_POLLING))
+			need_debounce_delay = true;
+
 		/* Clear status-change flags; we'll debounce later */
-		if ((portchange & USB_PORT_STAT_C_CONNECTION) &&
-			!(hub_is_superspeed(hub->hdev) &&
-			((portstatus & USB_PORT_STAT_LINK_STATE) ==
-						USB_SS_PORT_LS_SS_INACTIVE))) {
+		if (portchange & USB_PORT_STAT_C_CONNECTION) {
 			need_debounce_delay = true;
 			usb_clear_port_feature(hub->hdev, port1,
 					USB_PORT_FEAT_C_CONNECTION);
@@ -1262,7 +1268,7 @@ static void hub_quiesce(struct usb_hub *hub, enum hub_quiescing_type type)
 	if (type != HUB_SUSPEND) {
 		/* Disconnect all the children */
 		for (i = 0; i < hdev->maxchild; ++i) {
-			if (hub->ports[i] && hub->ports[i]->child)
+			if (hub->ports[i]->child)
 				usb_disconnect(&hub->ports[i]->child);
 		}
 	}
@@ -2229,7 +2235,7 @@ static int usb_enumerate_device_otg(struct usb_device *udev)
 		/* descriptor may appear anywhere in config */
 		err = __usb_get_extra_descriptor(udev->rawdescriptors[0],
 				le16_to_cpu(udev->config[0].desc.wTotalLength),
-				USB_DT_OTG, (void **) &desc);
+				USB_DT_OTG, (void **) &desc, sizeof(*desc));
 		if (err || !(desc->bmAttributes & USB_OTG_HNP))
 			return 0;
 
@@ -2814,26 +2820,17 @@ static int hub_port_reset(struct usb_hub *hub, int port1,
 			usb_clear_port_feature(hub->hdev, port1,
 					USB_PORT_FEAT_C_PORT_LINK_STATE);
 
+			if (udev)
+				usb_clear_port_feature(hub->hdev, port1,
+					USB_PORT_FEAT_C_CONNECTION);
+
 			/*
 			 * If a USB 3.0 device migrates from reset to an error
 			 * state, re-issue the warm reset.
 			 */
 			if (hub_port_status(hub, port1,
-					&portstatus, &portchange) < 0) {
-				usb_clear_port_feature(hub->hdev, port1,
-					USB_PORT_FEAT_C_CONNECTION);
+					&portstatus, &portchange) < 0)
 				goto done;
-			}
-
-			/*
-			 * Avoid clear CSC if device recovered after warm reset
-			 * with CCS set, oterwise there will be no portchange
-			 * event to trigger hub_port_connect_change in coming
-			 * port_event for further device enumeration.
-			 */
-			if (status || !(portstatus & USB_PORT_STAT_CONNECTION))
-				usb_clear_port_feature(hub->hdev, port1,
-					USB_PORT_FEAT_C_CONNECTION);
 
 			if (!hub_port_warm_reset_required(hub, port1,
 					portstatus))
@@ -3427,7 +3424,6 @@ static int wait_for_connected(struct usb_device *udev,
 int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 {
 	struct usb_hub	*hub = usb_hub_to_struct_hub(udev->parent);
-	struct usb_interface *intf = to_usb_interface(hub->intfdev);
 	struct usb_port *port_dev = hub->ports[udev->portnum  - 1];
 	int		port1 = udev->portnum;
 	int		status;
@@ -3444,7 +3440,6 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 
 	usb_lock_port(port_dev);
 
-	usb_autopm_get_interface(intf);
 	/* Skip the initial Clear-Suspend step for a remote wakeup */
 	status = hub_port_status(hub, port1, &portstatus, &portchange);
 	if (status == 0 && !port_is_suspended(hub, portstatus)) {
@@ -3511,7 +3506,6 @@ int usb_port_resume(struct usb_device *udev, pm_message_t msg)
 		usb_enable_ltm(udev);
 		usb_unlocked_enable_lpm(udev);
 	}
-	usb_autopm_put_interface(intf);
 
 	usb_unlock_port(port_dev);
 

@@ -2,7 +2,6 @@
  * fs/direct-io.c
  *
  * Copyright (C) 2002, Linus Torvalds.
- * Copyright (C) 2017, NVIDIA CORPORATION. All rights reserved.
  *
  * O_DIRECT
  *
@@ -279,8 +278,8 @@ static ssize_t dio_complete(struct dio *dio, ssize_t ret, bool is_async)
 		 */
 		dio->iocb->ki_pos += transferred;
 
-		if (dio->op == REQ_OP_WRITE)
-			ret = generic_write_sync(dio->iocb,  transferred);
+		if (ret > 0 && dio->op == REQ_OP_WRITE)
+			ret = generic_write_sync(dio->iocb, ret);
 		dio->iocb->ki_complete(dio->iocb, ret, 0);
 	}
 
@@ -614,10 +613,10 @@ static int get_more_blocks(struct dio *dio, struct dio_submit *sdio,
 	int ret;
 	sector_t fs_startblk;	/* Into file, in filesystem-sized blocks */
 	sector_t fs_endblk;	/* Into file, in filesystem-sized blocks */
-	long long startblk;	/* signed fs_startblk */
 	unsigned long fs_count;	/* Number of filesystem-sized blocks */
 	int create;
 	unsigned int i_blkbits = sdio->blkbits + sdio->blkfactor;
+	loff_t i_size;
 
 	/*
 	 * If there was a memory error and we've overwritten all the
@@ -635,12 +634,6 @@ static int get_more_blocks(struct dio *dio, struct dio_submit *sdio,
 		map_bh->b_size = fs_count << i_blkbits;
 
 		/*
-		 * Explicity casting fs_startblk (unsigned long long) to
-		 * signed long long for comparison later with inode size
-		 */
-		startblk = (long long) fs_startblk;
-
-		/*
 		 * For writes that could fill holes inside i_size on a
 		 * DIO_SKIP_HOLES filesystem we forbid block creations: only
 		 * overwrites are permitted. We will return early to the caller
@@ -653,8 +646,8 @@ static int get_more_blocks(struct dio *dio, struct dio_submit *sdio,
 		 */
 		create = dio->op == REQ_OP_WRITE;
 		if (dio->flags & DIO_SKIP_HOLES) {
-			if (startblk <= ((i_size_read(dio->inode) - 1) >>
-							i_blkbits))
+			i_size = i_size_read(dio->inode);
+			if (i_size && fs_startblk <= (i_size - 1) >> i_blkbits)
 				create = 0;
 		}
 
