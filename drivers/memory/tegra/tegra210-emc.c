@@ -12,6 +12,7 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/slab.h>
 #include <linux/clk-provider.h>
 #include <linux/clk.h>
 #include <linux/debugfs.h>
@@ -70,6 +71,7 @@
 	 EMC_PMACRO_OB_DDLL_LONG_DQ_RANK ## rank ## _ ## reg ##		\
 	 _OB_DDLL_LONG_DQ_RANK ## rank ## _BYTE ## byte2 ## _MASK)	\
 
+unsigned int emcMaxFreqUser = 1600000000;
 static bool emc_enable = true;
 module_param(emc_enable, bool, 0444);
 static bool emc_force_max_rate;
@@ -1547,6 +1549,12 @@ static int tegra210_emc_set_rate(unsigned long rate)
 	struct clk *parent;
 	unsigned long parent_rate;
 
+        if(rate > emcMaxFreqUser){
+		clk_set_rate(emc_clk,emcMaxFreqUser);
+		return 1;
+	}
+	
+		  
 	if (!emc_enable)
 		return -ENODEV;
 
@@ -1880,8 +1888,27 @@ static int efficiency_set(void *data, u64 val)
 	tegra210_emc_bw_efficiency = (val > 100) ? 100 : val;
 	return 0;
 }
+
+
+static int maxClockGet(void *data, u64 *val)
+{
+	*val = emcMaxFreqUser;
+	return 0;
+}
+
+static int maxClockSet(void *data, u64 val)
+{
+	emcMaxFreqUser = (val <= 1866000000 && val >= 40800000)  ? val : emcMaxFreqUser;			
+	return 0;
+}
+
+
+
 DEFINE_SIMPLE_ATTRIBUTE(efficiency_fops, efficiency_get,
 			efficiency_set, "%llu\n");
+
+DEFINE_SIMPLE_ATTRIBUTE(max_clock_fops, maxClockGet,
+			maxClockSet, "%llu\n");
 
 static const char *emc_user_names[EMC_USER_NUM] = {
 	"DC1",
@@ -2048,6 +2075,10 @@ static int tegra_emc_debug_init(void)
 	if (!debugfs_create_file("efficiency", S_IRUGO | S_IWUSR,
 				 emc_debugfs_root, NULL, &efficiency_fops))
 		goto err_out;
+        
+        if (!debugfs_create_file("max_clock", S_IRUGO | S_IWUSR,
+				 emc_debugfs_root, NULL, &max_clock_fops))
+		goto err_out; 
 
 	if (!debugfs_create_file("emc_usage_table", S_IRUGO, emc_debugfs_root,
 				 NULL, &emc_usage_table_fops))
@@ -2241,7 +2272,7 @@ static int tegra210_init_emc_data(struct platform_device *pdev)
 	int i;
 	unsigned long table_rate;
 	unsigned long current_rate;
-
+      
 	emc_clk = devm_clk_get(&pdev->dev, "emc");
 	if (IS_ERR(emc_clk)) {
 		dev_err(&pdev->dev, "Can not find EMC clock\n");
@@ -2287,7 +2318,14 @@ static int tegra210_init_emc_data(struct platform_device *pdev)
 			tegra_emc_table_size);
 		return -EINVAL;
 	}
-	tegra_emc_table = tegra_emc_table_normal;
+
+	tegra_emc_table = kmalloc(sizeof(*tegra_emc_table_normal)*(tegra_emc_table_size+1), GFP_KERNEL);
+        memcpy(tegra_emc_table,tegra_emc_table_normal,sizeof(*tegra_emc_table_normal)*tegra_emc_table_size);
+        tegra_emc_table[tegra_emc_table_size] = tegra_emc_table_normal[tegra_emc_table_size-1];
+        kfree(tegra_emc_table_normal);
+	tegra_emc_table_normal = tegra_emc_table;        
+        tegra_emc_table[tegra_emc_table_size].rate = 1866000;
+        ++tegra_emc_table_size;
 
 	/*
 	 * Copy trained trimmers from the normal table to the derated

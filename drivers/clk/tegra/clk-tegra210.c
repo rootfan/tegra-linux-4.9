@@ -1899,7 +1899,8 @@ static struct tegra_clk_pll_freq_table pll_m_freq_table[] = {
 	{ 38400000, 1331200000, 104, 3, 1, 0 },
 	{ 38400000, 1459200000,  76, 2, 1, 0 },
 	{ 38400000, 1600000000, 125, 3, 1, 0 },
-	{        0,          0,   0, 0, 0, 0 },
+        { 38400000, 1866000000, 147, 3, 1, 0 }, /* 18816 MHz */
+	{        0,          0,   0, 0, 0, 0 }, 
 };
 
 static struct div_nmp pllm_nmp = {
@@ -3533,7 +3534,7 @@ static __init void tegra210_shared_clk_init(char *sclk_high_clk)
 
 	clk = tegra_clk_register_shared_master("emc_master", "emc",
 		emc_is_native ? TEGRA_SHARED_BUS_EMC_NATIVE : 0,
-		12750000, t210b01 ? 1866000000 : 1600000000);
+		12750000, 1866000000);
 	if (clk) {
 		to_clk_cbus_shared(__clk_get_hw(clk))->users_default_rate =
 			204000000;
