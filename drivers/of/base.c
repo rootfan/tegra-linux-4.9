@@ -199,9 +199,22 @@ int __of_attach_node_sysfs(struct device_node *np)
 	return 0;
 }
 
+// updates a property in the device tree
+static void updateStringProperty(char* nodeCompatible, char* propertyName, char* newValue) 
+{
+	struct property *newProperty = kzalloc(sizeof(*newProperty),GFP_KERNEL);
+	newProperty->name = propertyName;
+	newProperty->value = newValue;
+	newProperty->length = strlen(newValue) + 1;
+	of_update_property(of_find_compatible_node(NULL, NULL, nodeCompatible),newProperty);
+}
+
 void __init of_core_init(void)
 {
 	struct device_node *np;
+
+	// Ensure vendor verity is off
+        updateStringProperty("android,vendor","fsmgr_flags","wait"); 
 
 	/* Create the kset, and register existing nodes */
 	mutex_lock(&of_mutex);
