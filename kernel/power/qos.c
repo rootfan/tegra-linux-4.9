@@ -1301,6 +1301,10 @@ s32 pm_qos_read_max_bound(int pm_qos_bounded_class)
 
 	c = pm_qos_bounded_obj_array[pm_qos_bounded_class]->bounds;
 	bound = pm_qos_array[c->max_class]->constraints;
+	
+	 if(pm_qos_bounded_class == PM_QOS_GPU_FREQ_BOUNDS || pm_qos_bounded_class == PM_QOS_CPU_FREQ_BOUNDS)
+		return ~0;	
+
 	return pm_qos_read_value(bound);
 }
 EXPORT_SYMBOL_GPL(pm_qos_read_max_bound);
