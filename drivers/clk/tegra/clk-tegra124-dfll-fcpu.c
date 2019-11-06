@@ -96,7 +96,7 @@ static const struct cvb_table tegra124_cpu_cvb_tables[] = {
 };
 
 static const unsigned long tegra210_cpu_max_freq_table[] = {
-	[0] = 1912500000UL,
+	[0] = 2218500000UL,
 	[1] = 1912500000UL,
 	[2] = 2218500000UL,
 	[3] = 1785000000UL,
@@ -132,7 +132,8 @@ static const unsigned long tegra210_cpu_max_freq_table[] = {
 		{1836000000UL,	{1864006, -40065, 370} }, \
 		{1912500000UL,	{1910780, -40815, 370} }, \
 		{2014500000UL,	{1227000,      0,   0} }, \
-		{2218500000UL,	{1227000,      0,   0} }, \
+		{2116500000UL,	{1227000,      0,   0} }, \
+		{2218500000UL,	{1284000,      0,   0} }, \
 		{0,           	{      0,      0,   0} }, \
 	}
 
@@ -499,7 +500,7 @@ struct cvb_table tegra210_cpu_cvb_tables[] = {
 		.speedo_id = 0,
 		.process_id = 1,
 		.min_millivolts = 850,
-		.max_millivolts = 1170,
+		.max_millivolts = 1284,
 		CPU_CVB_TABLE,
 		.cpu_dfll_data = {
 			.tune0_low = 0xffead0ff,
