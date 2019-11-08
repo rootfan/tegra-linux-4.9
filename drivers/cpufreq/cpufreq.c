@@ -1313,7 +1313,7 @@ static int cpufreq_online(unsigned int cpu)
 
 	if (new_policy) {
 		policy->user_policy.min = policy->min;
-		policy->user_policy.max = policy->max;
+		policy->user_policy.max = 1912500;
 
 		for_each_cpu(j, policy->related_cpus) {
 			per_cpu(cpufreq_cpu_data, j) = policy;
