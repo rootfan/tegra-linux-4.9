@@ -22,6 +22,7 @@
 #include <linux/clk-provider.h>
 #include <linux/clk.h>
 #include <soc/tegra/tegra-dvfs.h>
+#include <asm/uaccess.h>
 
 #include "clk.h"
 
@@ -990,6 +991,18 @@ static int possible_rates_show(struct seq_file *s, void *data)
 	return 0;
 }
 
+static ssize_t max_rate_set(struct file *file, const char __user *buf,size_t count, loff_t *offset){
+	char buffer[20];
+	char *end;
+	const size_t maxlen = 19;
+	struct clk_hw *hw = file->f_inode->i_private;
+	struct tegra_clk_cbus_shared *bus = to_clk_cbus_shared(hw);
+	if(copy_from_user(buffer, buf, count > maxlen ? maxlen : count))
+		return -EFAULT;
+	bus->max_rate = simple_strtoul(buffer,&end,10);	
+	return count;
+}
+
 static int possible_rates_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, possible_rates_show, inode->i_private);
@@ -998,6 +1011,7 @@ static int possible_rates_open(struct inode *inode, struct file *file)
 static const struct file_operations possible_rates_fops = {
 	.open		= possible_rates_open,
 	.read		= seq_read,
+	.write          = max_rate_set,
 	.llseek		= seq_lseek,
 	.release	= single_release,
 };

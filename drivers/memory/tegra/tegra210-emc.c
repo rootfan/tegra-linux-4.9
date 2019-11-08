@@ -20,6 +20,7 @@
 #include <linux/of_address.h>
 #include <linux/of_platform.h>
 #include <linux/thermal.h>
+#include <linux/slab.h>
 
 #include <soc/tegra/bpmp_t210_abi.h>
 #include <soc/tegra/tegra_bpmp.h>
@@ -28,7 +29,7 @@
 
 #include "tegra210-emc-reg.h"
 
-#define TEGRA_EMC_TABLE_MAX_SIZE		16
+#define TEGRA_EMC_TABLE_MAX_SIZE		50
 #define EMC_STATUS_UPDATE_TIMEOUT		1000
 #define TEGRA210_SAVE_RESTORE_MOD_REGS		12
 #define TEGRA_EMC_DEFAULT_CLK_LATENCY_US	2000
@@ -2337,8 +2338,20 @@ static int tegra210_init_emc_data(struct platform_device *pdev)
 			tegra_emc_table_size);
 		return -EINVAL;
 	}
-	tegra_emc_table = tegra_emc_table_normal;
 
+	
+	tegra_emc_table_normal = krealloc(tegra_emc_table_normal,sizeof(*tegra_emc_table_normal)*(tegra_emc_table_size+11),GFP_KERNEL);
+	for(i = tegra_emc_table_size + 11; tegra_emc_table_size < i; ++tegra_emc_table_size){
+		tegra_emc_table_normal[tegra_emc_table_size] = tegra_emc_table_normal[i-12];
+		tegra_emc_table_normal[tegra_emc_table_size].rate = 1600000 + 25000 * (tegra_emc_table_size-i+12);
+
+		if(tegra_emc_table_normal[tegra_emc_table_size].rate >= 1750000)
+			tegra_emc_table_normal[tegra_emc_table_size].min_volt = 925;
+			
+	}
+	tegra_emc_table_normal[tegra_emc_table_size-1].rate = 1866000;
+	tegra_emc_table = tegra_emc_table_normal;
+ 
 	/*
 	 * Copy trained trimmers from the normal table to the derated
 	 * table for LP4. Bootloader trains only the normal table.
