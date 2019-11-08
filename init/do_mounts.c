@@ -608,6 +608,7 @@ out:
 	sys_mount(".", "/", NULL, MS_MOVE, NULL);
 	sys_chroot(".");
 #else
+	sys_mkdir((const char __user __force *) "/system_root", 0700);
 	/* Mount root to /system_root for Diag image */
 	sys_mount(".", "/system_root", NULL, MS_MOVE, NULL);
 
