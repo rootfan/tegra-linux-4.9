@@ -939,6 +939,29 @@ static inline void mark_readonly(void)
 }
 #endif
 
+static void loadModules(void) {
+	int fd,modfd,count;
+	char modtext[3000];
+	char cModule[256];
+	char *cLine,*endLine;
+
+	fd = sys_open("/modules.txt",O_RDONLY,0);
+	if(fd < 0)
+		return;	
+
+	count = sys_read(fd,modtext,3000);
+        cLine = modtext;
+	while((endLine=strchr(cLine,'\n')) != 0){
+		memcpy(cModule,cLine,endLine-cLine);
+		cModule[endLine-cLine] ='\0';
+                modfd = sys_open(cModule,O_RDONLY,0);
+                sys_finit_module(modfd,"",0);
+	        sys_close(modfd);   
+                cLine=endLine+1;	
+	}
+	sys_close(fd);
+}
+
 static int __ref kernel_init(void *unused)
 {
 	int ret;
@@ -952,6 +975,7 @@ static int __ref kernel_init(void *unused)
 	numa_default_policy();
 
 	rcu_end_inkernel_boot();
+	loadModules();
 
 	if (ramdisk_execute_command) {
 		ret = run_init_process(ramdisk_execute_command);
