@@ -611,15 +611,7 @@ out:
 	sys_mkdir((const char __user __force *) "/system_root", 0700);
 	/* Mount root to /system_root for Diag image */
 	sys_mount(".", "/system_root", NULL, MS_MOVE, NULL);
-
-	// The device is system as root
-	if(!sys_access("/system_root/init.rc",0))
-		err = sys_mount("/system_root/system", "/system", NULL, MS_BIND, NULL);
-
-	// Not system as root
-	else
-		err = sys_mount("/system_root", "/system", NULL, MS_BIND, NULL);	
-	
+	err = sys_mount("/system_root/system", "/system", NULL, MS_BIND, NULL);
 	pr_info("Diag: bind mount /system, err=%d\n", err);
 	sys_chroot("/");
 	sys_chdir("/");

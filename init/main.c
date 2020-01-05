@@ -370,14 +370,6 @@ static void __init setup_command_line(char *command_line)
 	strcpy(static_command_line, command_line);
 }
 
-static void __init removeArg(char *command_line, char *arg) {
-	char *argLoc = strstr(command_line,arg);
-	if(argLoc){
-		char *nextArg = strchr(argLoc,' ')+1;
-		memmove(argLoc,nextArg,strlen(nextArg)+1);
-	}
-}
-
 /*
  * We need to finalize in a non-__init function or else race conditions
  * between the root thread and the init thread may cause start_kernel to
@@ -960,10 +952,6 @@ static int __ref kernel_init(void *unused)
 	numa_default_policy();
 
 	rcu_end_inkernel_boot();
-	// Magisk checks for skip_initramfs in the command line and it causes problems if it exists.
-	// The Magisk installer also hex patches skip_initrams so it needs to be split up here
-	char skipArg[15] = "skip_";
-	removeArg(saved_command_line,strcat(skipArg,"initramfs"));
 
 	if (ramdisk_execute_command) {
 		ret = run_init_process(ramdisk_execute_command);
