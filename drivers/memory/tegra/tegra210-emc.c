@@ -2296,7 +2296,7 @@ static int tegra210_init_emc_data(struct platform_device *pdev)
 		tegra_emc_table_normal[tegra_emc_table_size].rate = 1600000 + 25000 * (tegra_emc_table_size-i+12);
 
 		if(tegra_emc_table_normal[tegra_emc_table_size].rate >= 1750000)
-			tegra_emc_table_normal[tegra_emc_table_size].min_volt = 925;
+			tegra_emc_table_normal[tegra_emc_table_size].min_volt = tegra_emc_table_normal[i-12].min_volt + 25;
 			
 	}
 	tegra_emc_table_normal[tegra_emc_table_size-1].rate = 1866000;
