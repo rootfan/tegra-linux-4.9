@@ -1318,6 +1318,12 @@ int tegra_dvfs_init_thermal_dvfs_voltages(int *therm_voltages,
 		millivolts = therm_voltages + therm_idx * MAX_DVFS_FREQS;
 		for (freq_idx = 0; freq_idx < freqs_num; freq_idx++) {
 			int mv = millivolts[freq_idx];
+
+			if(freq_idx && mv < millivolts[freq_idx - 1]) {
+				printk("Voltage lower than previous. Previous: %d Current: %d",millivolts[freq_idx-1],mv);
+				mv = millivolts[freq_idx] = millivolts[freq_idx - 1];
+			}	
+			
 			if ((mv > d->dvfs_rail->max_millivolts) ||
 			    (mv < d->dvfs_rail->min_millivolts) ||
 			    (freq_idx && (mv < millivolts[freq_idx - 1]))) {
