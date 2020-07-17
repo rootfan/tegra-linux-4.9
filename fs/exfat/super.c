@@ -251,6 +251,7 @@ enum {
 	Opt_debug,
 	Opt_namecase,
 	Opt_codepage,
+	Opt_err,
 };
 
 static const match_table_t exfat_tokens = {
@@ -275,6 +276,7 @@ static const match_table_t exfat_tokens = {
 	{Opt_debug, "debug"},
 	{Opt_namecase, "namecase=%u"},
 	{Opt_codepage, "codepage=%u"},
+	{Opt_err, NULL},
 };
 
 static int __exfat_parse_option(struct super_block *sb, char *p, substring_t *args, int token, int silent)
