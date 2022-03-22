@@ -676,7 +676,8 @@
 #define PCI_EXT_CAP_ID_DPC	0x1D	/* Downstream Port Containment */
 #define PCI_EXT_CAP_ID_L1SS	0x1E	/* L1 Substates */
 #define PCI_EXT_CAP_ID_PTM	0x1F	/* Precision Time Measurement */
-#define PCI_EXT_CAP_ID_MAX	PCI_EXT_CAP_ID_PTM
+#define PCI_EXT_CAP_ID_MARGIN	0x27	/* Lane margin */
+#define PCI_EXT_CAP_ID_MAX	PCI_EXT_CAP_ID_MARGIN
 
 #define PCI_EXT_CAP_DSN_SIZEOF	12
 #define PCI_EXT_CAP_MCAST_ENDPOINT_SIZEOF 40
@@ -984,28 +985,6 @@
 #define PCI_L1SS_CTRL2_PWRN_VAL_MASK	0xF8	/* L1SS ctrl 2 reg val mask */
 #define PCI_L1SS_CTRL2_PWRN_VAL_SHIFT	3	/* L1SS ctrl 2 reg val shift */
 
-/* Note: Some of these backports from k4.14 overlap existing k4.9 values... */
-/* ASPM L1 PM Substates */
-#define PCI_L1SS_CAP		0x04	/* Capabilities Register */
-#define  PCI_L1SS_CAP_PCIPM_L1_2	0x00000001  /* PCI-PM L1.2 Supported */
-#define  PCI_L1SS_CAP_PCIPM_L1_1	0x00000002  /* PCI-PM L1.1 Supported */
-#define  PCI_L1SS_CAP_ASPM_L1_2		0x00000004  /* ASPM L1.2 Supported */
-#define  PCI_L1SS_CAP_ASPM_L1_1		0x00000008  /* ASPM L1.1 Supported */
-#define  PCI_L1SS_CAP_L1_PM_SS		0x00000010  /* L1 PM Substates Supported */
-#define  PCI_L1SS_CAP_CM_RESTORE_TIME	0x0000ff00  /* Port Common_Mode_Restore_Time */
-#define  PCI_L1SS_CAP_P_PWR_ON_SCALE	0x00030000  /* Port T_POWER_ON scale */
-#define  PCI_L1SS_CAP_P_PWR_ON_VALUE	0x00f80000  /* Port T_POWER_ON value */
-#define PCI_L1SS_CTL1		0x08	/* Control 1 Register */
-#define  PCI_L1SS_CTL1_PCIPM_L1_2	0x00000001  /* PCI-PM L1.2 Enable */
-#define  PCI_L1SS_CTL1_PCIPM_L1_1	0x00000002  /* PCI-PM L1.1 Enable */
-#define  PCI_L1SS_CTL1_ASPM_L1_2	0x00000004  /* ASPM L1.2 Enable */
-#define  PCI_L1SS_CTL1_ASPM_L1_1	0x00000008  /* ASPM L1.1 Enable */
-#define  PCI_L1SS_CTL1_L1SS_MASK	0x0000000f
-#define  PCI_L1SS_CTL1_CM_RESTORE_TIME	0x0000ff00  /* Common_Mode_Restore_Time */
-#define  PCI_L1SS_CTL1_LTR_L12_TH_VALUE	0x03ff0000  /* LTR_L1.2_THRESHOLD_Value */
-#define  PCI_L1SS_CTL1_LTR_L12_TH_SCALE	0xe0000000  /* LTR_L1.2_THRESHOLD_Scale */
-#define PCI_L1SS_CTL2		0x0c	/* Control 2 Register */
-
 /* Downstream Port Containment */
 #define PCI_EXP_DPC_CAP			4	/* DPC Capability */
 #define  PCI_EXP_DPC_CAP_RP_EXT		0x20	/* Root Port Extensions for DPC */
@@ -1031,5 +1010,23 @@
 #define PCI_PTM_CTRL			0x08	    /* PTM Control */
 #define  PCI_PTM_CTRL_ENABLE		0x00000001  /* PTM enable */
 #define  PCI_PTM_CTRL_ROOT		0x00000002  /* Root select */
+
+/* Lane Margining Capability */
+#define PCI_MARGIN_PORT_CAP			0x4
+#define PCI_MARGIN_PORT_STATUS			0x6
+#define  PCI_MARGIN_PORT_STATUS_READY		0x0001
+#define  PCI_MARGIN_PORT_STATUS_SW_READY	0x0002
+#define PCI_MARGIN_LANE_CTRL			0x8
+#define  PCI_MARGIN_LANE_CTRL_RCV_NUM_MASK	0x0007
+#define  PCI_MARGIN_LANE_CTRL_TYPE_MASK		0x0038
+#define  PCI_MARGIN_LANE_CTRL_TYPE_SHIFT	3
+#define  PCI_MARGIN_LANE_CTRL_PAYLOAD_MASK	0xff00
+#define  PCI_MARGIN_LANE_CTRL_PAYLOAD_SHIFT	8
+#define PCI_MARGIN_LANE_STATUS			0xA
+#define  PCI_MARGIN_LANE_STATUS_RCV_NUM_MASK	0x0007
+#define  PCI_MARGIN_LANE_STATUS_TYPE_MASK	0x0038
+#define  PCI_MARGIN_LANE_STATUS_TYPE_SHIFT	3
+#define  PCI_MARGIN_LANE_STATUS_PAYLOAD_MASK	0xff00
+#define  PCI_MARGIN_LANE_STATUS_PAYLOAD_SHIFT	8
 
 #endif /* LINUX_PCI_REGS_H */

@@ -1,20 +1,6 @@
 /*
  * Coherent per-device memory handling.
  * Borrowed from i386
- *
- * Copyright (c) 2019, NVIDIA CORPORATION.  All rights reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed "as is" WITHOUT ANY WARRANTY of any
- * kind, whether express or implied; without even the implied warranty
- * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include <linux/io.h>
 #include <linux/slab.h>
@@ -573,7 +559,7 @@ retry:
 		BUG_ON(!dma_mapping_error(h->cma_dev, base));
 	}
 
-	if (dma_mapping_error(h->cma_dev, base)){
+	if (dma_mapping_error(h->cma_dev, base)) {
 		if (retries < MAX_HEAP_RESIZE_RETRY) {
 			dev_info(&h->dev,
 			"Retry alloc_from_contiguous_heap: %d\n", retries);
@@ -1001,10 +987,12 @@ out_unlock:
 				&orig_base, left_chunks_len);
 
 		if (left_chunks_len != 0)
-			release_from_contiguous_heap(h, orig_base, left_chunks_len);
+			release_from_contiguous_heap(h, orig_base,
+				left_chunks_len);
 
 		if (right_chunks_len != 0)
-			release_from_contiguous_heap(h, right_chunks_base, right_chunks_len);
+			release_from_contiguous_heap(h, right_chunks_base,
+				right_chunks_len);
 
 		dev_dbg(&h->dev, "config new heap b=%pa, s=0x%zx\n",
 			&h->curr_base, h->curr_len);

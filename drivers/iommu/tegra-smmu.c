@@ -1353,6 +1353,11 @@ static int smmu_iommu_attach_dev(struct iommu_domain *domain,
 	if (!client)
 		return -ENOMEM;
 
+	if (dev->archdata.iommu != NULL) {
+		dev_err(dev, "already attached to IOMMU domain\n");
+		return -EEXIST;
+	}
+
 	dma_map = to_dma_iommu_mapping(dev);
 	dma_map_to_as_bitmap(dma_map, as_bitmap);
 
@@ -1420,6 +1425,9 @@ static int smmu_iommu_attach_dev(struct iommu_domain *domain,
 
 	dev_dbg(smmu->dev, "%s is attached\n", dev_name(dev));
 	debugfs_create_master(client);
+
+	dev->archdata.iommu = domain;
+
 	return 0;
 
 err_client:
@@ -1440,6 +1448,8 @@ static void smmu_iommu_detach_dev(struct iommu_domain *domain,
 	struct smmu_client *c;
 	struct dentry *temp, **as_link;
 	int i;
+
+	dev->archdata.iommu = NULL;
 
 	if (!as)
 		return;
@@ -2456,7 +2466,7 @@ static int __init tegra_smmu_of_setup(struct device_node *np)
 	if (IS_ERR(pdev))
 		return PTR_ERR(pdev);
 
-	of_iommu_set_ops(np, (struct iommu_ops *)&smmu_iommu_ops);
+	of_iommu_set_ops(np, (struct iommu_ops *)smmu_iommu_ops);
 	return 0;
 }
 IOMMU_OF_DECLARE(tegra_smmu_of, "nvidia,tegra210-smmu", tegra_smmu_of_setup);

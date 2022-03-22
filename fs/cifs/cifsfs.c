@@ -2,6 +2,8 @@
  *   fs/cifs/cifsfs.c
  *
  *   Copyright (C) International Business Machines  Corp., 2002,2008
+ *   Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+ *
  *   Author(s): Steve French (sfrench@us.ibm.com)
  *
  *   Common Internet FileSystem (CIFS) client
@@ -930,8 +932,8 @@ static int cifs_clone_file_range(struct file *src_file, loff_t off,
 	struct inode *src_inode = file_inode(src_file);
 	struct inode *target_inode = file_inode(dst_file);
 	struct cifsFileInfo *smb_file_src = src_file->private_data;
-	struct cifsFileInfo *smb_file_target = dst_file->private_data;
-	struct cifs_tcon *target_tcon = tlink_tcon(smb_file_target->tlink);
+	struct cifsFileInfo *smb_file_target;
+	struct cifs_tcon *target_tcon;
 	unsigned int xid;
 	int rc;
 
@@ -944,6 +946,9 @@ static int cifs_clone_file_range(struct file *src_file, loff_t off,
 		cifs_dbg(VFS, "missing cifsFileInfo on copy range src file\n");
 		goto out;
 	}
+
+	smb_file_target = dst_file->private_data;
+	target_tcon = tlink_tcon(smb_file_target->tlink);
 
 	/*
 	 * Note: cifs case is easier than btrfs since server responsible for
@@ -1326,9 +1331,9 @@ init_cifs(void)
 	if (rc)
 		goto out_init_cifs_idmap;
 #ifdef CONFIG_CIFS_SYSFS
-        rc = cifs_sysfs_init();
-        if (rc)
-		printk(KERN_WARNING "CIFS: Failed to init sysfs: %d\n", rc);
+	rc = cifs_sysfs_init();
+	if (rc)
+		pr_warn("CIFS: Failed to init sysfs: %d\n", rc);
 #endif
 	return 0;
 

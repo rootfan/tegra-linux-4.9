@@ -4,7 +4,7 @@
  *  Copyright (C) 2003-2004 Russell King, All Rights Reserved.
  *  SD support Copyright (C) 2004 Ian Molton, All Rights Reserved.
  *  Copyright (C) 2005-2007 Pierre Ossman, All Rights Reserved.
- *  Copyright (c) 2017-2019, NVIDIA CORPORATION.  All rights reserved.
+ *  Copyright (c) 2017-2021, NVIDIA CORPORATION.  All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -68,11 +68,12 @@ static const unsigned int sd_au_size[] = {
 		__res & __mask;						\
 	})
 
-static int voltage_switch_uhs_failure = 0;
+static int voltage_switch_uhs_failure;
 static ssize_t error_stats_show(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
 	int bytes_written = 0;
+
 	bytes_written += sprintf(buf + bytes_written,
 				"%d\n", voltage_switch_uhs_failure);
 	return bytes_written;
@@ -83,17 +84,15 @@ static ssize_t error_stats_store(struct device *dev,
 {
 	int ret, error_stats = 0;
 
-	ret = sscanf(buf, "%d", &error_stats);
-	if (ret <= 0 || error_stats < 0)
+	ret = kstrtoint(buf, 10, &error_stats);
+	if (ret != 0 || error_stats != 0)
 		return -EINVAL;
 
 	voltage_switch_uhs_failure = error_stats;
 	return count;
 }
 
-static DEVICE_ATTR(error_stats, S_IWUSR | S_IRUGO,
-			error_stats_show,
-			error_stats_store);
+static DEVICE_ATTR(error_stats, 0644, error_stats_show, error_stats_store);
 
 
 static ssize_t ios_timing_show(struct device *dev,
@@ -105,48 +104,49 @@ static ssize_t ios_timing_show(struct device *dev,
 	const char *str;
 
 	switch (ios->timing) {
-		case MMC_TIMING_LEGACY:
-			str = "legacy";
-			break;
-		case MMC_TIMING_MMC_HS:
-			str = "mmc high-speed";
-			break;
-		case MMC_TIMING_SD_HS:
-			str = "sd high-speed";
-			break;
-		case MMC_TIMING_UHS_SDR12:
-			str = "sd uhs SDR12";
-			break;
-		case MMC_TIMING_UHS_SDR25:
-			str = "sd uhs SDR25";
-			break;
-		case MMC_TIMING_UHS_SDR50:
-			str = "sd uhs SDR50";
-			break;
-		case MMC_TIMING_UHS_SDR104:
-			str = "sd uhs SDR104";
-			break;
-		case MMC_TIMING_UHS_DDR50:
-			str = "sd uhs DDR50";
-			break;
-		case MMC_TIMING_MMC_DDR52:
-			str = "mmc DDR52";
-			break;
-		case MMC_TIMING_MMC_HS200:
-			str = "mmc HS200";
-			break;
-		case MMC_TIMING_MMC_HS400:
-			str = mmc_card_hs400es(host->card) ?
-				"mmc HS400 enhanced strobe" : "mmc HS400";
-			break;
-		default:
-			str = "invalid";
-			break;
+	case MMC_TIMING_LEGACY:
+		str = "legacy";
+		break;
+	case MMC_TIMING_MMC_HS:
+		str = "mmc high-speed";
+		break;
+	case MMC_TIMING_SD_HS:
+		str = "sd high-speed";
+		break;
+	case MMC_TIMING_UHS_SDR12:
+		str = "sd uhs SDR12";
+		break;
+	case MMC_TIMING_UHS_SDR25:
+		str = "sd uhs SDR25";
+		break;
+	case MMC_TIMING_UHS_SDR50:
+		str = "sd uhs SDR50";
+		break;
+	case MMC_TIMING_UHS_SDR104:
+		str = "sd uhs SDR104";
+		break;
+	case MMC_TIMING_UHS_DDR50:
+		str = "sd uhs DDR50";
+		break;
+	case MMC_TIMING_MMC_DDR52:
+		str = "mmc DDR52";
+		break;
+	case MMC_TIMING_MMC_HS200:
+		str = "mmc HS200";
+		break;
+	case MMC_TIMING_MMC_HS400:
+		str = mmc_card_hs400es(host->card) ?
+			"mmc HS400 enhanced strobe" : "mmc HS400";
+		break;
+	default:
+		str = "invalid";
+		break;
 	}
+
 	return sprintf(buf, "timing spec:\t%u (%s)\n", ios->timing, str);
 }
 
-static DEVICE_ATTR(ios_timing, S_IRUGO,	ios_timing_show, NULL);
+static DEVICE_ATTR(ios_timing, 0444, ios_timing_show, NULL);
 
 
 /*

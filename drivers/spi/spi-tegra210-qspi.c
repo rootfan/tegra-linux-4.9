@@ -1,7 +1,7 @@
 /*
  * QSPI driver for NVIDIA's Tegra210 QUAD SPI Controller.
  *
- * Copyright (c) 2013-2019, NVIDIA CORPORATION.  All rights reserved.
+ * Copyright (c) 2013-2021, NVIDIA CORPORATION.  All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -177,7 +177,7 @@
 #define MAX_CHIP_SELECT				2
 #define QSPI_FIFO_DEPTH				64
 #define QSPI_FIFO_FLUSH_MAX_DELAY		2000
-#define QSPI_BRINGUP_BUILD			1
+
 #define CMD_TRANSFER				0
 #define ADDR_TRANSFER				1
 #define DATA_TRANSFER				2
@@ -200,7 +200,6 @@ struct tegra_qspi_data {
 	u8					bus_clk_div;
 	u32					qspi_max_frequency;
 	u32					cur_speed;
-	u8					qspi_num_dummy_cycle;
 
 	struct spi_device			*cur_qspi;
 	unsigned				cur_pos;
@@ -637,18 +636,19 @@ static void tegra_qspi_dump_regs(const char *heading,
 	if (heading)
 		dev_info(tqspi->dev, "%s\n", heading);
 
-	dev_err(tqspi->dev, "CMD_0: \t\t\t0x%08lx\n", command1_reg);
+	dev_err(tqspi->dev, "CMD_0: \t\t\t0x%08x\n", command1_reg);
 	dev_err(tqspi->dev, "FIFO_STS: \t\t\t0x%08x\n", fifo_status_reg);
-	dev_err(tqspi->dev, "DMA_CTL: \t\t\t0x%08lx\n", dma_ctrl_reg);
-	dev_err(tqspi->dev, "TRANS_STS: \t\t\t0x%08lx\n", trans_status_reg);
-	dev_err(tqspi->dev, "GLOBAL_CONFIG: \t\t\t0x%08lx\n", gl_config_reg);
-	dev_err(tqspi->dev, "DMA_BLK:  \t\t\t0x%08lx\n", dma_blk_reg);
-	dev_err(tqspi->dev, "INTR:  \t\t\t0x%08lx\n", intr_mask_reg);
-	dev_err(tqspi->dev, "MISC-REG: \t\t\t0x%08lx\n", misc_reg);
-	dev_err(tqspi->dev, "CMD_VAl:  \t\t\t0x%08lx\n", cmd_value);
-	dev_err(tqspi->dev, "ADR_VAL:  \t\t\t0x%08lx\n", addr_value);
-	dev_err(tqspi->dev, "CMD_CFG:  \t\t\t0x%08lx\n", cmd_config);
-	dev_err(tqspi->dev, "ADR_CFG:  \t\t\t0x%08lx\n", addr_config);
+	dev_err(tqspi->dev, "DMA_CTL: \t\t\t0x%08x\n", dma_ctrl_reg);
+	dev_err(tqspi->dev, "TRANS_STS: \t\t\t0x%08x\n", trans_status_reg);
+	dev_err(tqspi->dev, "GLOBAL_CONFIG: \t\t\t0x%08x\n", gl_config_reg);
+	dev_err(tqspi->dev, "DMA_BLK:  \t\t\t0x%08x\n", dma_blk_reg);
+	dev_err(tqspi->dev, "INTR:  \t\t\t0x%08x\n", intr_mask_reg);
+	dev_err(tqspi->dev, "MISC-REG: \t\t\t0x%08x\n", misc_reg);
+	dev_err(tqspi->dev, "CMD_VAl:  \t\t\t0x%08x\n", cmd_value);
+	dev_err(tqspi->dev, "ADR_VAL:  \t\t\t0x%08x\n", addr_value);
+	dev_err(tqspi->dev, "CMD_CFG:  \t\t\t0x%08x\n", cmd_config);
+	dev_err(tqspi->dev, "ADR_CFG:  \t\t\t0x%08x\n", addr_config);
+}
 #else
 static void tegra_qspi_dump_regs(const char *heading,
 				 struct tegra_qspi_data *tqspi)
@@ -999,9 +999,12 @@ static int tegra_qspi_start_dma_based_transfer(
 	} else if (((len) >> 4) & 0x1) {
 		val |= QSPI_TX_TRIG_4 | QSPI_RX_TRIG_4;
 		maxburst = 4;
-	} else {
+	} else if (((len) >> 5) & 0x1) {
 		val |= QSPI_TX_TRIG_8 | QSPI_RX_TRIG_8;
 		maxburst = 8;
+	} else {
+		val |= QSPI_TX_TRIG_16 | QSPI_RX_TRIG_16;
+		maxburst = 16;
 	}
 	if ((tqspi->cur_direction & DATA_DIR_TX) ||
 	    (tqspi->cur_direction & DATA_DIR_RX)) {
@@ -1294,7 +1297,7 @@ static int tegra_qspi_start_transfer_one(struct spi_device *spi,
 	int ret;
 	unsigned long command1;
 	int req_mode;
-	u8 bus_width = X1, num_dummy_cycles = 0;
+	u8 bus_width = X1;
 	bool is_ddr = false;
 	u8 bus_clk_div = tqspi->bus_clk_div;
 
@@ -1309,12 +1312,10 @@ static int tegra_qspi_start_transfer_one(struct spi_device *spi,
 	total_fifo_words = tegra_qspi_calculate_curr_xfer_param(spi, tqspi, t);
 #ifndef QSPI_BRINGUP_BUILD
 	if (cdata) {
-		if ((t->len - tqspi->cur_pos) >  cdata->x1_len_limit) {
-			num_dummy_cycles =  cdata->x4_dymmy_cycle;
+		if ((t->len - tqspi->cur_pos) >  cdata->x1_len_limit)
 			speed = cdata->x4_bus_speed;
-		} else {
+		else {
 			is_ddr = false;
-			num_dummy_cycles =  cdata->x1_dymmy_cycle;
 			speed = cdata->x1_bus_speed;
 		}
 		bus_clk_div = cdata->bus_clk_div;
@@ -1323,12 +1324,13 @@ static int tegra_qspi_start_transfer_one(struct spi_device *spi,
 		return -EINVAL;
 	}
 #else
-	num_dummy_cycles = get_dummy_cyl(t->delay_usecs);
 	if (tqspi->qspi_force_bus_speed)
 		speed = tqspi->cur_speed;
 	else
 		speed = t->speed_hz;
 #endif
+	if (bus_clk_div < 1 || bus_clk_div > 2)
+		bus_clk_div = tqspi->bus_clk_div;
 	/*
 	 * NOTE:
 	 * 1.Bus width can be x4 even for command/addr for QPI commands.
@@ -1428,13 +1430,6 @@ static int tegra_qspi_start_transfer_one(struct spi_device *spi,
 
 	tqspi->command1_reg = command1;
 
-	if (tqspi->dcycle_non_cmbseq_mode) {
-		tqspi->qspi_num_dummy_cycle =
-			QSPI_NUM_DUMMY_CYCLE(num_dummy_cycles);
-	}
-
-	tegra_qspi_writel(tqspi, tqspi->qspi_num_dummy_cycle, QSPI_MISC_REG);
-
 #ifdef QSPI_BRINGUP_BUILD
 	if (tqspi->qspi_force_dma_mode) {
 		ret = tegra_qspi_start_dma_based_transfer(tqspi, t);
@@ -1504,7 +1499,8 @@ static int tegra_qspi_setup(struct spi_device *spi)
 	tqspi->def_command1_reg = val;
 	tegra_qspi_writel(tqspi, tqspi->def_command1_reg, QSPI_COMMAND1);
 	spin_unlock_irqrestore(&tqspi->lock, flags);
-	pm_runtime_put(tqspi->dev);
+	pm_runtime_mark_last_busy(tqspi->dev);
+	pm_runtime_put_autosuspend(tqspi->dev);
 
 	return 0;
 }
@@ -1537,7 +1533,8 @@ static int tegra_qspi_cs_low(struct spi_device *spi, bool state)
 	tegra_qspi_writel(tqspi, val, QSPI_COMMAND1);
 
 	spin_unlock_irqrestore(&tqspi->lock, flags);
-	pm_runtime_put(tqspi->dev);
+	pm_runtime_mark_last_busy(tqspi->dev);
+	pm_runtime_put_autosuspend(tqspi->dev);
 
 	return 0;
 }
@@ -1550,12 +1547,12 @@ static int tegra_qspi_combined_sequence_transfer(struct tegra_qspi_data *tqspi,
 	struct spi_transfer *xfer;
 	struct spi_device *spi = msg->spi;
 	u8 transfer_phase = 0, bus_width = X1;
+	u32 cmd1 = 0, dma_ctl = 0;
 	int ret;
 	u32 qspi_setting = 0;
 	u32 address_value = 0;
 	u32 cmd_config = 0, addr_config = 0;
 	u8 cmd_value = 0, len = 0, val = 0;
-	u8 num_dummy_cycles = 0;
 
 	/* Enable Combined sequence mode */
 	val = tegra_qspi_readl(tqspi, QSPI_GLOBAL_CONFIG);
@@ -1582,7 +1579,6 @@ static int tegra_qspi_combined_sequence_transfer(struct tegra_qspi_data *tqspi,
 		} else if (transfer_phase == ADDR_TRANSFER) {
 			/* Extract Address configuration and value */
 			qspi_setting = xfer->delay_usecs;
-			num_dummy_cycles = get_dummy_cyl(qspi_setting);
 
 			is_ddr = get_sdr_ddr(qspi_setting);
 			bus_width = get_bus_width(qspi_setting);
@@ -1607,8 +1603,6 @@ static int tegra_qspi_combined_sequence_transfer(struct tegra_qspi_data *tqspi,
 			tegra_qspi_writel(tqspi, addr_config,
 					  QSPI_CMB_SEQ_ADDR_CFG);
 
-			tqspi->qspi_num_dummy_cycle =
-				QSPI_NUM_DUMMY_CYCLE(num_dummy_cycles);
 			reinit_completion(&tqspi->xfer_completion);
 			/* Start Data transfer */
 			ret = tegra_qspi_start_transfer_one(spi, xfer,
@@ -1639,6 +1633,21 @@ static int tegra_qspi_combined_sequence_transfer(struct tegra_qspi_data *tqspi,
 					dmaengine_terminate_all(
 						tqspi->rx_dma_chan);
 
+				/* Abort transfer by resetting pio/dma bit */
+				if (!tqspi->is_curr_dma_xfer) {
+					cmd1 = tegra_qspi_readl(tqspi,
+						QSPI_COMMAND1);
+					cmd1 &= ~QSPI_PIO;
+					tegra_qspi_writel(tqspi,
+						cmd1, QSPI_COMMAND1);
+				} else {
+					dma_ctl = tegra_qspi_readl(tqspi,
+						  QSPI_DMA_CTL);
+					dma_ctl &= ~QSPI_DMA_EN;
+					tegra_qspi_writel(tqspi,
+						dma_ctl, QSPI_DMA_CTL);
+				}
+
 				/* Reset controller if timeout happens */
 				reset_control_reset(tqspi->rstc);
 				ret = -EIO;
@@ -1668,6 +1677,7 @@ static int tegra_qspi_non_combined_sequence_transfer
 	struct spi_transfer *xfer;
 	struct spi_device *spi = msg->spi;
 	int ret;
+	u32 cmd1 = 0, dma_ctl = 0;
 	u8 val = 0;
 
 	val = tegra_qspi_readl(tqspi, QSPI_GLOBAL_CONFIG);
@@ -1698,6 +1708,16 @@ static int tegra_qspi_non_combined_sequence_transfer
 			    (tqspi->cur_direction & DATA_DIR_RX))
 				dmaengine_terminate_all(tqspi->rx_dma_chan);
 
+			/* Abort transfer by resetting pio/dma bit */
+			if (!tqspi->is_curr_dma_xfer) {
+				cmd1 = tegra_qspi_readl(tqspi, QSPI_COMMAND1);
+				cmd1 &= ~QSPI_PIO;
+				tegra_qspi_writel(tqspi, cmd1, QSPI_COMMAND1);
+			} else {
+				dma_ctl = tegra_qspi_readl(tqspi, QSPI_DMA_CTL);
+				dma_ctl &= ~QSPI_DMA_EN;
+				tegra_qspi_writel(tqspi, dma_ctl, QSPI_DMA_CTL);
+			}
 			/* Reset controller in case of timeout happens */
 			reset_control_reset(tqspi->rstc);
 				ret = -EIO;
@@ -1764,7 +1784,8 @@ static int tegra_qspi_transfer_one_message(struct spi_master *master,
 	ret = 0;
 exit:
 	tegra_qspi_writel(tqspi, tqspi->def_command1_reg, QSPI_COMMAND1);
-	pm_runtime_put(tqspi->dev);
+	pm_runtime_mark_last_busy(tqspi->dev);
+	pm_runtime_put_autosuspend(tqspi->dev);
 	msg->status = ret;
 	spi_finalize_current_message(master);
 
@@ -2047,14 +2068,14 @@ static struct tegra_qspi_device_controller_data *tegra_qspi_get_cdata_dt(
 	if (!of_property_read_u32(data_np, "nvidia,x1-bus-speed", &pval))
 		cdata->x1_bus_speed = pval;
 
-	if (!of_property_read_u32(data_np, "nvidia,x1-dymmy-cycle", &pval))
-		cdata->x1_dymmy_cycle = pval;
+	if (!of_property_read_u32(data_np, "nvidia,x1-dummy-cycle", &pval))
+		cdata->x1_dummy_cycle = pval;
 
 	if (!of_property_read_u32(data_np, "nvidia,x4-bus-speed", &pval))
 		cdata->x4_bus_speed = pval;
 
-	if (!of_property_read_u32(data_np, "nvidia,x4-dymmy-cycle", &pval))
-		cdata->x4_dymmy_cycle = pval;
+	if (!of_property_read_u32(data_np, "nvidia,x4-dummy-cycle", &pval))
+		cdata->x4_dummy_cycle = pval;
 
 	if (!of_property_read_u32(data_np, "nvidia,x4-is-ddr", &pval))
 		cdata->x4_is_ddr = pval;
@@ -2062,8 +2083,8 @@ static struct tegra_qspi_device_controller_data *tegra_qspi_get_cdata_dt(
 	if (!of_property_read_u32(data_np, "nvidia,ifddr-div2-sdr", &pval))
 		cdata->ifddr_div2_sdr = pval;
 
-	if (!of_property_read_u8(data_np, "nvidia,ctrl-bus-clk-ratio",
-				 (u8 *) &pval))
+	if (!of_property_read_u32(data_np, "nvidia,ctrl-bus-clk-ratio",
+				  &pval))
 		cdata->bus_clk_div = (u8)pval;
 
 	cdata->is_combined_seq_mode_en = of_property_read_bool(data_np,
@@ -2110,6 +2131,7 @@ static int tegra_qspi_probe(struct platform_device *pdev)
 	struct tegra_qspi_data	*tqspi;
 	struct resource		*r;
 	int ret, qspi_irq;
+	u32 as_delay;
 	u32 actual_speed = 0;
 
 	master = spi_alloc_master(&pdev->dev, sizeof(*tqspi));
@@ -2217,7 +2239,13 @@ static int tegra_qspi_probe(struct platform_device *pdev)
 		if (ret < 0)
 			goto exit_deinit_dma;
 	}
+	ret = of_property_read_u32(dev->of_node, "qspi-autosuspend-delay",
+				   &as_delay);
+	if (ret)
+		as_delay = 3000; /* defalut autosuspend delay */
 
+	pm_runtime_set_autosuspend_delay(&pdev->dev, as_delay);
+	pm_runtime_use_autosuspend(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
 	if (!pm_runtime_enabled(&pdev->dev)) {
 		ret = tegra_qspi_runtime_resume(&pdev->dev);
@@ -2252,7 +2280,8 @@ static int tegra_qspi_probe(struct platform_device *pdev)
 	tegra_qspi_writel(tqspi, tqspi->def_command1_reg, QSPI_COMMAND1);
 	tqspi->def_command2_reg = tegra_qspi_readl(tqspi, QSPI_COMMAND2);
 	tegra_qspi_set_gr_registers(tqspi);
-	pm_runtime_put(&pdev->dev);
+	pm_runtime_mark_last_busy(&pdev->dev);
+	pm_runtime_put_autosuspend(&pdev->dev);
 
 	master->dev.of_node = pdev->dev.of_node;
 	ret = devm_spi_register_master(&pdev->dev, master);
@@ -2270,6 +2299,7 @@ static int tegra_qspi_probe(struct platform_device *pdev)
 	return ret;
 
 exit_pm_disable:
+	pm_runtime_put_noidle(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
 	if (!pm_runtime_status_suspended(&pdev->dev))
 		tegra_qspi_runtime_suspend(&pdev->dev);
@@ -2300,6 +2330,7 @@ static int tegra_qspi_remove(struct platform_device *pdev)
 	if (tqspi->rx_dma_chan)
 		tegra_qspi_deinit_dma_param(tqspi, true);
 
+	pm_runtime_put_noidle(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
 	if (!pm_runtime_status_suspended(&pdev->dev))
 		tegra_qspi_runtime_suspend(&pdev->dev);
@@ -2343,7 +2374,8 @@ static int tegra_qspi_resume(struct device *dev)
 	}
 	tegra_qspi_writel(tqspi, tqspi->command1_reg, QSPI_COMMAND1);
 	tegra_qspi_set_gr_registers(tqspi);
-	pm_runtime_put(dev);
+	pm_runtime_mark_last_busy(dev);
+	pm_runtime_put_autosuspend(dev);
 
 	return spi_master_resume(master);
 }

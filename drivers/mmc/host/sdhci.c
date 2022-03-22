@@ -52,14 +52,15 @@ static void sdhci_enable_preset_value(struct sdhci_host *host, bool enable);
 static void sdhci_regulator_config_pre(struct mmc_host *mmc, int vdd,
 						bool flag);
 
-static int error_data_timeout = 0;
-static int error_data_end_bit = 0;
-static int error_data_crc = 0;
-static int error_data_adma = 0;
+static int error_data_timeout;
+static int error_data_end_bit;
+static int error_data_crc;
+static int error_data_adma;
 static ssize_t
 error_stats_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	int bytes_written = 0;
+
 	bytes_written += sprintf(buf + bytes_written,
 				"%d %d %d %d\n",
 				error_data_timeout,
@@ -75,8 +76,8 @@ error_stats_store(struct device *dev, struct device_attribute *attr,
 {
 	int ret, error_stats = 0;
 
-	ret = sscanf(buf, "%d", &error_stats);
-	if (ret <= 0 || error_stats != 0)
+	ret = kstrtoint(buf, 10, &error_stats);
+	if (ret != 0 || error_stats != 0)
 		return -EINVAL;
 
 	error_data_timeout = error_stats;
@@ -86,8 +87,7 @@ error_stats_store(struct device *dev, struct device_attribute *attr,
 	return count;
 }
 
-static DEVICE_ATTR(error_stats, S_IRUGO | S_IWUSR,
-		   error_stats_show, error_stats_store);
+static DEVICE_ATTR(error_stats, 0644, error_stats_show, error_stats_store);
 
 static void sdhci_enable_host_interrupts(struct mmc_host *mmc, bool enable)
 {
@@ -4240,6 +4240,10 @@ EXPORT_SYMBOL_GPL(sdhci_free_host);
 
 static int __init sdhci_drv_init(void)
 {
+	error_data_timeout = 0;
+	error_data_end_bit = 0;
+	error_data_crc = 0;
+	error_data_adma = 0;
 	pr_info(DRIVER_NAME
 		": Secure Digital Host Controller Interface driver\n");
 	pr_info(DRIVER_NAME ": Copyright(c) Pierre Ossman\n");

@@ -130,9 +130,9 @@ static bool is_gfp_allow_cma(gfp_t gfp_flags) {
 		is_cma_movable;
 
 	if (gfpflags_to_migratetype(gfp_flags) == MIGRATE_MOVABLE) {
-		if(!strict_cma_enabled)
+		if (!strict_cma_enabled)
 			return true;
-		else if(is_allow_cma)
+		else if (is_allow_cma)
 			return true;
 		else
 			return false;
@@ -2259,6 +2259,22 @@ static struct page *__rmqueue(struct zone *zone, unsigned int order,
 {
 	struct page *page;
 
+	if (IS_ENABLED(CONFIG_CMA)) {
+		/*
+		 * Balance movable allocations between regular and CMA areas by
+		 * allocating from CMA when over half of the zone's free memory
+		 * is in the CMA area.
+		 */
+		if (migratetype == MIGRATE_MOVABLE &&
+		    is_gfp_allow_cma(gfp_flags) &&
+		    zone_page_state(zone, NR_FREE_CMA_PAGES) >
+		    zone_page_state(zone, NR_FREE_PAGES) / 2) {
+			page = __rmqueue_cma_fallback(zone, order);
+			if (page)
+				goto out;
+		}
+	}
+
 	page = __rmqueue_smallest(zone, order, migratetype);
 	if (unlikely(!page)) {
 		if (migratetype == MIGRATE_MOVABLE) {
@@ -2269,8 +2285,9 @@ static struct page *__rmqueue(struct zone *zone, unsigned int order,
 		if (!page)
 			page = __rmqueue_fallback(zone, order, migratetype);
 	}
-
-	trace_mm_page_alloc_zone_locked(page, order, migratetype);
+out:
+	if (page)
+		trace_mm_page_alloc_zone_locked(page, order, migratetype);
 	return page;
 }
 
@@ -2692,13 +2709,6 @@ struct page *buffered_rmqueue(struct zone *preferred_zone,
 	unsigned long flags;
 	struct page *page;
 	bool cold = ((gfp_flags & __GFP_COLD) != 0);
-#ifdef CONFIG_CMA
-	gfp_t cma_movable_mask = __GFP_MOVABLE | GFP_MOVABLE_TRY_CMA;
-	bool is_highuser_movable =
-		((gfp_flags & GFP_HIGHUSER_MOVABLE) == GFP_HIGHUSER_MOVABLE);
-	bool is_cma_movable = (gfp_flags & cma_movable_mask) == cma_movable_mask;
-#endif
-
 
 	if (likely(order == 0)
 #ifdef CONFIG_CMA
@@ -2710,8 +2720,7 @@ struct page *buffered_rmqueue(struct zone *preferred_zone,
 		 * do not allocate GFP_HIGHUSER_MOVABLE on pcplist.
 		 */
 		&& (!(strict_cma_enabled) ||
-			 (strict_cma_enabled &&
-			 (!is_highuser_movable && !is_cma_movable)))
+			 !is_gfp_allow_cma(gfp_flags))
 #endif
 		) {
 		struct per_cpu_pages *pcp;
