@@ -119,14 +119,20 @@ EXPORT_SYMBOL(node_states);
 extern bool strict_cma_enabled;
 
 static bool is_gfp_allow_cma(gfp_t gfp_flags) {
-	bool is_allow_cma = !(gfp_flags & GFP_NOCMA);
-	bool is_highuser_movable =
-		((gfp_flags & GFP_HIGHUSER_MOVABLE) == GFP_HIGHUSER_MOVABLE);
+	gfp_t gfp_mask = GFP_HIGHUSER_MOVABLE | GFP_HIGHUSER_MOVABLE_NOCMA;
+	gfp_t cma_movable_mask = __GFP_MOVABLE | GFP_MOVABLE_TRY_CMA;
+
+	bool is_allow_cma;
+	bool is_cma_movable;
+
+	is_cma_movable = (gfp_flags & cma_movable_mask) == cma_movable_mask;
+	is_allow_cma = ((gfp_flags & gfp_mask) == GFP_HIGHUSER_MOVABLE) ||
+		is_cma_movable;
 
 	if (gfpflags_to_migratetype(gfp_flags) == MIGRATE_MOVABLE) {
 		if(!strict_cma_enabled)
 			return true;
-		else if(is_highuser_movable && is_allow_cma)
+		else if(is_allow_cma)
 			return true;
 		else
 			return false;
@@ -2687,8 +2693,10 @@ struct page *buffered_rmqueue(struct zone *preferred_zone,
 	struct page *page;
 	bool cold = ((gfp_flags & __GFP_COLD) != 0);
 #ifdef CONFIG_CMA
+	gfp_t cma_movable_mask = __GFP_MOVABLE | GFP_MOVABLE_TRY_CMA;
 	bool is_highuser_movable =
 		((gfp_flags & GFP_HIGHUSER_MOVABLE) == GFP_HIGHUSER_MOVABLE);
+	bool is_cma_movable = (gfp_flags & cma_movable_mask) == cma_movable_mask;
 #endif
 
 
@@ -2702,7 +2710,8 @@ struct page *buffered_rmqueue(struct zone *preferred_zone,
 		 * do not allocate GFP_HIGHUSER_MOVABLE on pcplist.
 		 */
 		&& (!(strict_cma_enabled) ||
-			 (strict_cma_enabled && !is_highuser_movable))
+			 (strict_cma_enabled &&
+			 (!is_highuser_movable && !is_cma_movable)))
 #endif
 		) {
 		struct per_cpu_pages *pcp;

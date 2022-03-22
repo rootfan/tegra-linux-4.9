@@ -1,1 +1,1 @@
-daily-2020.03.06.0_rel-32-r7-partner
+daily-2020.12.10.1_rel-32-shield-r1-partner
