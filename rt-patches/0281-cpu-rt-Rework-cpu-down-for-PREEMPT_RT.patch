@@ -1,7 +1,7 @@
-From abb7f59ffba3577676c8b784a40b2890ebee84df Mon Sep 17 00:00:00 2001
+From d79d415747a4deaf82af23c071667d8889fe8716 Mon Sep 17 00:00:00 2001
 From: Steven Rostedt <srostedt@redhat.com>
 Date: Mon, 16 Jul 2012 08:07:43 +0000
-Subject: [PATCH 281/352] cpu/rt: Rework cpu down for PREEMPT_RT
+Subject: [PATCH 281/353] cpu/rt: Rework cpu down for PREEMPT_RT
 
 Bringing a CPU down is a pain with the PREEMPT_RT kernel because
 tasks can be preempted in many more places than in non-RT. In
@@ -441,7 +441,7 @@ index 41cc8ae..87424f1 100644
  	 * Prevent irq alloc/free while the dying cpu reorganizes the
  	 * interrupt affinities.
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 224b95a..c8af959 100644
+index 9460d21..e90cf52 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -1169,6 +1169,84 @@ void do_set_cpus_allowed(struct task_struct *p, const struct cpumask *new_mask)

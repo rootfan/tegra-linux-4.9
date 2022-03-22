@@ -1,7 +1,7 @@
-From c227fa9c4c21f73c30e5240cc55cfc0a0840e971 Mon Sep 17 00:00:00 2001
+From bb50a88116e30ea37c6ca53cd79cd9c93f756e56 Mon Sep 17 00:00:00 2001
 From: Thomas Gleixner <tglx@linutronix.de>
 Date: Tue, 31 Jan 2012 13:01:27 +0100
-Subject: [PATCH 158/352] genirq: Allow disabling of softirq processing in irq
+Subject: [PATCH 158/353] genirq: Allow disabling of softirq processing in irq
  thread context
 
 The processing of softirqs in irq thread context is a performance gain

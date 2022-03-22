@@ -1,7 +1,7 @@
-From 4d6934ab058bd860a3b616f60f55450463d878ce Mon Sep 17 00:00:00 2001
+From de094e7a2640b49981e1feffdd22387f12e651b8 Mon Sep 17 00:00:00 2001
 From: Anders Roxell <anders.roxell@linaro.org>
 Date: Thu, 14 May 2015 17:52:17 +0200
-Subject: [PATCH 308/352] arch/arm64: Add lazy preempt support
+Subject: [PATCH 308/353] arch/arm64: Add lazy preempt support
 
 arm64 is missing support for PREEMPT_RT. The main feature which is
 lacking is support for lazy preemption. The arch-specific entry code,
@@ -20,7 +20,7 @@ Signed-off-by: Anders Roxell <anders.roxell@linaro.org>
  5 files changed, 18 insertions(+), 5 deletions(-)
 
 diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
-index b532015..86686af 100644
+index 7c750f8..68d29e3 100644
 --- a/arch/arm64/Kconfig
 +++ b/arch/arm64/Kconfig
 @@ -92,6 +92,7 @@ config ARM64
@@ -32,10 +32,10 @@ index b532015..86686af 100644
  	select HAVE_RCU_TABLE_FREE
  	select HAVE_SYSCALL_TRACEPOINTS
 diff --git a/arch/arm64/include/asm/thread_info.h b/arch/arm64/include/asm/thread_info.h
-index 5b96df6..69095a9 100644
+index 95d8f6b..80804be 100644
 --- a/arch/arm64/include/asm/thread_info.h
 +++ b/arch/arm64/include/asm/thread_info.h
-@@ -51,6 +51,7 @@ struct thread_info {
+@@ -59,6 +59,7 @@ struct thread_info {
  	u64			ttbr0;		/* saved TTBR0_EL1 */
  #endif
  	int			preempt_count;	/* 0 => preemptable, <0 => bug */
@@ -43,7 +43,7 @@ index 5b96df6..69095a9 100644
  };
  
  #define INIT_THREAD_INFO(tsk)						\
-@@ -85,6 +86,7 @@ struct thread_info {
+@@ -93,6 +94,7 @@ struct thread_info {
  #define TIF_NEED_RESCHED	1
  #define TIF_NOTIFY_RESUME	2	/* callback before returning to user */
  #define TIF_FOREIGN_FPSTATE	3	/* CPU's FP state is not current's */
@@ -51,7 +51,7 @@ index 5b96df6..69095a9 100644
  #define TIF_NOHZ		7
  #define TIF_SYSCALL_TRACE	8
  #define TIF_SYSCALL_AUDIT	9
-@@ -102,6 +104,7 @@ struct thread_info {
+@@ -110,6 +112,7 @@ struct thread_info {
  #define _TIF_NEED_RESCHED	(1 << TIF_NEED_RESCHED)
  #define _TIF_NOTIFY_RESUME	(1 << TIF_NOTIFY_RESUME)
  #define _TIF_FOREIGN_FPSTATE	(1 << TIF_FOREIGN_FPSTATE)
@@ -59,7 +59,7 @@ index 5b96df6..69095a9 100644
  #define _TIF_NOHZ		(1 << TIF_NOHZ)
  #define _TIF_SYSCALL_TRACE	(1 << TIF_SYSCALL_TRACE)
  #define _TIF_SYSCALL_AUDIT	(1 << TIF_SYSCALL_AUDIT)
-@@ -111,7 +114,9 @@ struct thread_info {
+@@ -119,7 +122,9 @@ struct thread_info {
  #define _TIF_DEPRECATED_WARN	(1 << TIF_DEPRECATED_WARN)
  
  #define _TIF_WORK_MASK		(_TIF_NEED_RESCHED | _TIF_SIGPENDING | \

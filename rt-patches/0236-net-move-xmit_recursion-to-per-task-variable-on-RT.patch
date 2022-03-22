@@ -1,7 +1,7 @@
-From 8e74e4845d1825e91b3209872dad7895aaa219f1 Mon Sep 17 00:00:00 2001
+From d1105ffaed227574078580cf57aecf11bb1cac7e Mon Sep 17 00:00:00 2001
 From: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
 Date: Wed, 13 Jan 2016 15:55:02 +0100
-Subject: [PATCH 236/352] net: move xmit_recursion to per-task variable on -RT
+Subject: [PATCH 236/353] net: move xmit_recursion to per-task variable on -RT
 
 A softirq on -RT can be preempted. That means one task is in
 __dev_queue_xmit(), gets preempted and another task may enter

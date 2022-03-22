@@ -1,7 +1,7 @@
-From fce77872d1d591b4c9896a8f82c728032b2bfb5c Mon Sep 17 00:00:00 2001
+From 1fa925f15ab41c089802f1125fd137c91d3d05a5 Mon Sep 17 00:00:00 2001
 From: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
 Date: Mon, 17 Feb 2014 17:30:03 +0100
-Subject: [PATCH 204/352] fs: jbd2: pull your plug when waiting for space
+Subject: [PATCH 204/353] fs: jbd2: pull your plug when waiting for space
 
 Two cps in parallel managed to stall the the ext4 fs. It seems that
 journal code is either waiting for locks or sleeping waiting for

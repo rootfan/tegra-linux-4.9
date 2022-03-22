@@ -1,7 +1,7 @@
-From d7d6aea97226caf51762e7a182272c4aac9e6cdd Mon Sep 17 00:00:00 2001
+From b6a54acab96846d006ba0ae019aaf12ffd9b6b5b Mon Sep 17 00:00:00 2001
 From: Thomas Gleixner <tglx@linutronix.de>
 Date: Wed, 9 Jan 2013 12:08:15 +0100
-Subject: [PATCH 109/352] slub: Enable irqs for __GFP_WAIT
+Subject: [PATCH 109/353] slub: Enable irqs for __GFP_WAIT
 
 SYSTEM_RUNNING might be too late for enabling interrupts. Allocations
 with GFP_WAIT can happen before that. So use this as an indicator.

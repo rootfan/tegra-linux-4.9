@@ -1,7 +1,7 @@
-From a2673b0d5081b466639e62edbbf25c996427712f Mon Sep 17 00:00:00 2001
+From ecb0fdaeff4d173c58441ba8395fd6739763f6e4 Mon Sep 17 00:00:00 2001
 From: Thomas Gleixner <tglx@linutronix.de>
 Date: Fri, 17 Feb 2017 19:44:39 +0100
-Subject: [PATCH 002/352] lockdep: Handle statically initialized PER_CPU locks
+Subject: [PATCH 002/353] lockdep: Handle statically initialized PER_CPU locks
  proper
 
 If a PER_CPU struct which contains a spin_lock is statically initialized

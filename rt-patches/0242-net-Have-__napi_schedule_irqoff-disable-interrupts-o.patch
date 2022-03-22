@@ -1,7 +1,7 @@
-From 188508c2881b158554ee90a7053ecb626479001b Mon Sep 17 00:00:00 2001
+From 1222a3bc43705e51d0b8440fea8a96399f120571 Mon Sep 17 00:00:00 2001
 From: Steven Rostedt <rostedt@goodmis.org>
 Date: Tue, 6 Dec 2016 17:50:30 -0500
-Subject: [PATCH 242/352] net: Have __napi_schedule_irqoff() disable interrupts
+Subject: [PATCH 242/353] net: Have __napi_schedule_irqoff() disable interrupts
  on RT
 
 A customer hit a crash where the napi sd->poll_list became corrupted.

@@ -1,7 +1,7 @@
-From 846ea583b427c227ab18830bd55c344018dc7de5 Mon Sep 17 00:00:00 2001
+From 22ebf1cb7f98c401d46bdf155b1b7861ea4a69cf Mon Sep 17 00:00:00 2001
 From: Thomas Gleixner <tglx@linutronix.de>
 Date: Mon, 13 Dec 2010 16:33:39 +0100
-Subject: [PATCH 205/352] x86: Convert mce timer to hrtimer
+Subject: [PATCH 205/353] x86: Convert mce timer to hrtimer
 
 mce_timer is started in atomic contexts of cpu bringup. This results
 in might_sleep() warnings on RT. Convert mce_timer to a hrtimer to

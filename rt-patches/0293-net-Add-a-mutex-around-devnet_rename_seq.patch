@@ -1,7 +1,7 @@
-From eec99921cbbab034c7ff4abb934f8613fd465954 Mon Sep 17 00:00:00 2001
+From a18386cfbc06bd71dbaa2d6f94136472be0648de Mon Sep 17 00:00:00 2001
 From: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
 Date: Wed, 20 Mar 2013 18:06:20 +0100
-Subject: [PATCH 293/352] net: Add a mutex around devnet_rename_seq
+Subject: [PATCH 293/353] net: Add a mutex around devnet_rename_seq
 
 On RT write_seqcount_begin() disables preemption and device_rename()
 allocates memory with GFP_KERNEL and grabs later the sysfs_mutex

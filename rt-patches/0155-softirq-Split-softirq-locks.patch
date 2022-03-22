@@ -1,7 +1,7 @@
-From 163651523ab2b511d44e77d99c4cf97780ded204 Mon Sep 17 00:00:00 2001
+From 6df80314ef130a30b11de3767d340f40fff5a77f Mon Sep 17 00:00:00 2001
 From: Thomas Gleixner <tglx@linutronix.de>
 Date: Thu, 4 Oct 2012 14:20:47 +0100
-Subject: [PATCH 155/352] softirq: Split softirq locks
+Subject: [PATCH 155/353] softirq: Split softirq locks
 
 The 3.x RT series removed the split softirq implementation in favour
 of pushing softirq processing into the context of the thread which
@@ -199,10 +199,10 @@ index daed623..d69e34c 100644
  #define PF_EXITPIDONE	0x00000008	/* pi exit done on shut down */
  #define PF_VCPU		0x00000010	/* I'm a virtual CPU */
 diff --git a/init/main.c b/init/main.c
-index a1c1368..0a9e29a 100644
+index f742df0..0cb3f4b 100644
 --- a/init/main.c
 +++ b/init/main.c
-@@ -509,6 +509,7 @@ asmlinkage __visible void __init start_kernel(void)
+@@ -512,6 +512,7 @@ asmlinkage __visible void __init start_kernel(void)
  	setup_command_line(command_line);
  	setup_nr_cpu_ids();
  	setup_per_cpu_areas();

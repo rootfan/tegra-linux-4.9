@@ -1,7 +1,7 @@
-From fd5aac6a91bf4501d9a076ed24af038d8ab3d81d Mon Sep 17 00:00:00 2001
+From 760af9da3636e5125bd230f5e4e9baa64fe6d204 Mon Sep 17 00:00:00 2001
 From: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
 Date: Thu, 22 Jun 2017 17:53:34 +0200
-Subject: [PATCH 179/352] kernel/locking: use an exclusive wait_q for sleepers
+Subject: [PATCH 179/353] kernel/locking: use an exclusive wait_q for sleepers
 MIME-Version: 1.0
 Content-Type: text/plain; charset=UTF-8
 Content-Transfer-Encoding: 8bit
@@ -103,7 +103,7 @@ index b99ddf3..c1a3b9f 100644
  		wake_q_add(wake_q, waiter->task);
  	raw_spin_unlock(&current->pi_lock);
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 7782270..17fd92e 100644
+index cefe988..e892bda 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -445,9 +445,15 @@ static bool set_nr_if_polling(struct task_struct *p)

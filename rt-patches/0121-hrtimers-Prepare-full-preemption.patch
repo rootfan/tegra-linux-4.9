@@ -1,7 +1,7 @@
-From 723b31033a5d814d811e488c8e70190a428871de Mon Sep 17 00:00:00 2001
+From 19c71b4b99822b55ae969c63f4669272ff90dc66 Mon Sep 17 00:00:00 2001
 From: Ingo Molnar <mingo@elte.hu>
 Date: Fri, 3 Jul 2009 08:29:34 -0500
-Subject: [PATCH 121/352] hrtimers: Prepare full preemption
+Subject: [PATCH 121/353] hrtimers: Prepare full preemption
 
 Make cancellation of a running callback in softirq context safe
 against preemption.
@@ -118,7 +118,7 @@ index 179e0b9..7ab5110 100644
  }
  
 diff --git a/kernel/time/itimer.c b/kernel/time/itimer.c
-index 1d5c720..184de67 100644
+index f7e4c11..c69796d 100644
 --- a/kernel/time/itimer.c
 +++ b/kernel/time/itimer.c
 @@ -213,6 +213,7 @@ int do_setitimer(int which, struct itimerval *value, struct itimerval *ovalue)

@@ -1,7 +1,7 @@
-From 32d2cb56dd34693876db37ba33933dd5ff1b8dc5 Mon Sep 17 00:00:00 2001
+From e53c3392ec233c1844bf1054946093b855b57f5d Mon Sep 17 00:00:00 2001
 From: Steven Rostedt <rostedt@goodmis.org>
 Date: Tue, 4 Mar 2014 12:28:32 -0500
-Subject: [PATCH 218/352] cpu_chill: Add a UNINTERRUPTIBLE hrtimer_nanosleep
+Subject: [PATCH 218/353] cpu_chill: Add a UNINTERRUPTIBLE hrtimer_nanosleep
 
 We hit another bug that was caused by switching cpu_chill() from
 msleep() to hrtimer_nanosleep().

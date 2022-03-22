@@ -1,7 +1,7 @@
-From 49289fa785180dba432a7aa48cc7b0fd2de2c267 Mon Sep 17 00:00:00 2001
+From c0a67dd2bb2628c1cf638542c1d7e455f73fe454 Mon Sep 17 00:00:00 2001
 From: Thomas Gleixner <tglx@linutronix.de>
 Date: Sat, 25 Jun 2011 09:21:04 +0200
-Subject: [PATCH 133/352] sched: Add saved_state for tasks blocked on sleeping
+Subject: [PATCH 133/353] sched: Add saved_state for tasks blocked on sleeping
  locks
 
 Spinlocks are state preserving in !RT. RT changes the state when a
@@ -38,7 +38,7 @@ index 1f416c1..922b6e7 100644
  #ifdef CONFIG_SMP
   extern void kick_process(struct task_struct *tsk);
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 4860a2e..6390d48 100644
+index a87b712..1b9af53 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2059,8 +2059,25 @@ try_to_wake_up(struct task_struct *p, unsigned int state, int wake_flags)

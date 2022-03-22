@@ -1,7 +1,7 @@
-From 4dae4850d39756ea45e54402e07ad63c8518c7ad Mon Sep 17 00:00:00 2001
+From 885edf719f1d450fbaf49d0eae75d2f0611fdcf7 Mon Sep 17 00:00:00 2001
 From: Steven Rostedt <rostedt@goodmis.org>
 Date: Thu, 29 Sep 2011 12:24:30 -0500
-Subject: [PATCH 049/352] tracing: Account for preempt off in
+Subject: [PATCH 049/353] tracing: Account for preempt off in
  preempt_schedule()
 
 The preempt_schedule() uses the preempt_disable_notrace() version
@@ -28,7 +28,7 @@ Signed-off-by: Thomas Gleixner <tglx@linutronix.de>
  1 file changed, 9 insertions(+)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 986dec4..83f60bd 100644
+index 5db7a87..f6f067c 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -3682,7 +3682,16 @@ asmlinkage __visible void __sched notrace preempt_schedule_notrace(void)

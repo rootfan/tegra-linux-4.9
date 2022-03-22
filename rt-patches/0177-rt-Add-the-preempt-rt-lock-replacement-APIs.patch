@@ -1,7 +1,7 @@
-From aee529fa3af5b16a3d404d1e383a96c460b7f6c4 Mon Sep 17 00:00:00 2001
+From 42df48cf9984d98d4e6784fc4a7c8070278fbe7b Mon Sep 17 00:00:00 2001
 From: Thomas Gleixner <tglx@linutronix.de>
 Date: Sun, 26 Jul 2009 19:39:56 +0200
-Subject: [PATCH 177/352] rt: Add the preempt-rt lock replacement APIs
+Subject: [PATCH 177/353] rt: Add the preempt-rt lock replacement APIs
 
 Map spinlocks, rwlocks, rw_semaphores and semaphores to the rt_mutex
 based locking functions for preempt-rt.
@@ -2355,7 +2355,7 @@ index 9aa0fcc..76d0b40 100644
 +
 +#endif
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index fffe6d0..7782270 100644
+index 1a76de2..cefe988 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -469,7 +469,7 @@ void wake_q_add(struct wake_q_head *head, struct task_struct *task)

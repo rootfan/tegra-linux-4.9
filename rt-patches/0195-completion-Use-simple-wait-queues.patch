@@ -1,7 +1,7 @@
-From d271d7c084119bc69571c7d3d8b9a37d7be95054 Mon Sep 17 00:00:00 2001
+From 970950fa8d444acc627ec7afcef1e628a4773cad Mon Sep 17 00:00:00 2001
 From: Thomas Gleixner <tglx@linutronix.de>
 Date: Fri, 11 Jan 2013 11:23:51 +0100
-Subject: [PATCH 195/352] completion: Use simple wait queues
+Subject: [PATCH 195/353] completion: Use simple wait queues
 
 Completions have no long lasting callbacks and therefor do not need
 the complex waitqueue variant. Use simple waitqueues which reduces the
@@ -306,7 +306,7 @@ index 8d0f35d..b62cf64 100644
  }
  EXPORT_SYMBOL(completion_done);
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 50adeae..e61c6d30 100644
+index 1935cf1..129624c 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -3426,7 +3426,10 @@ void migrate_disable(void)

@@ -1,7 +1,7 @@
-From 1473c91ed85ae9ccc6605345b64e262931886bc8 Mon Sep 17 00:00:00 2001
+From f037570700581c12ae6eedd40c1dbdc731306e19 Mon Sep 17 00:00:00 2001
 From: Thomas Gleixner <tglx@linutronix.de>
 Date: Mon, 6 Jun 2011 12:20:33 +0200
-Subject: [PATCH 131/352] sched: Move mmdrop to RCU on RT
+Subject: [PATCH 131/353] sched: Move mmdrop to RCU on RT
 
 Takes sleeping locks and calls into the memory allocator, so nothing
 we want to do in task switch and oder atomic contexts.
@@ -83,7 +83,7 @@ index 2a04c19..b0f2926 100644
  {
  	VM_BUG_ON(atomic_read(&mm->mm_users));
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index 412542f..4403d29 100644
+index 9f37962..ff579b8 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -2840,8 +2840,12 @@ static struct rq *finish_task_switch(struct task_struct *prev)
@@ -100,7 +100,7 @@ index 412542f..4403d29 100644
  	if (unlikely(prev_state == TASK_DEAD)) {
  		if (prev->sched_class->task_dead)
  			prev->sched_class->task_dead(prev);
-@@ -5690,6 +5694,8 @@ void sched_setnuma(struct task_struct *p, int nid)
+@@ -5692,6 +5696,8 @@ void sched_setnuma(struct task_struct *p, int nid)
  #endif /* CONFIG_NUMA_BALANCING */
  
  #ifdef CONFIG_HOTPLUG_CPU
@@ -109,7 +109,7 @@ index 412542f..4403d29 100644
  /*
   * Ensures that the idle task is using init_mm right before its cpu goes
   * offline.
-@@ -5704,7 +5710,12 @@ void idle_task_exit(void)
+@@ -5706,7 +5712,12 @@ void idle_task_exit(void)
  		switch_mm(mm, &init_mm, current);
  		finish_arch_post_lock_switch();
  	}
@@ -123,7 +123,7 @@ index 412542f..4403d29 100644
  }
  
  /*
-@@ -7778,6 +7789,10 @@ int sched_cpu_dying(unsigned int cpu)
+@@ -7780,6 +7791,10 @@ int sched_cpu_dying(unsigned int cpu)
  	update_max_interval();
  	nohz_balance_exit_idle(cpu);
  	hrtick_clear(rq);

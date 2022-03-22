@@ -1,7 +1,7 @@
-From 4d8fc1d2a0e7385bb27cf38795cce91e8bd5729e Mon Sep 17 00:00:00 2001
+From 00baad1941b55e55b005a18e86bf140c44bb5b02 Mon Sep 17 00:00:00 2001
 From: Thomas Gleixner <tglx@linutronix.de>
 Date: Fri, 27 Jun 2014 16:24:52 +0200
-Subject: [PATCH 325/352] workqueue: Prevent deadlock/stall on RT
+Subject: [PATCH 325/353] workqueue: Prevent deadlock/stall on RT
 
 Austin reported a XFS deadlock/stall on RT where scheduled work gets
 never exececuted and tasks are waiting for each other for ever.
@@ -42,7 +42,7 @@ Cc: Steven Rostedt <rostedt@goodmis.org>
  2 files changed, 52 insertions(+), 15 deletions(-)
 
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index d252c77..ec9a8e8 100644
+index 360f5bc..47d54c8 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -3768,9 +3768,8 @@ void __noreturn do_task_dead(void)

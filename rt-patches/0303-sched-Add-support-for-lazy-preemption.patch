@@ -1,7 +1,7 @@
-From b12f5b7c251a068c1dc03223975554e2a80e7b35 Mon Sep 17 00:00:00 2001
+From bac88b8f1c5c444e6c5adb8fe592519093f5a5bc Mon Sep 17 00:00:00 2001
 From: Thomas Gleixner <tglx@linutronix.de>
 Date: Fri, 26 Oct 2012 18:50:54 +0100
-Subject: [PATCH 303/352] sched: Add support for lazy preemption
+Subject: [PATCH 303/353] sched: Add support for lazy preemption
 
 It has become an obsession to mitigate the determinism vs. throughput
 loss of RT. Looking at the mainline semantics of preemption points
@@ -229,7 +229,7 @@ index f8a2982..11dbe26 100644
  	prompt "Preemption Model"
  	default PREEMPT_NONE
 diff --git a/kernel/sched/core.c b/kernel/sched/core.c
-index c8af959..ddf157c 100644
+index e90cf52..3bc179d 100644
 --- a/kernel/sched/core.c
 +++ b/kernel/sched/core.c
 @@ -537,6 +537,38 @@ void resched_curr(struct rq *rq)
@@ -356,7 +356,7 @@ index c8af959..ddf157c 100644
  	do {
  		/*
  		 * Because the function tracer can trace preempt_count_sub()
-@@ -5633,7 +5699,9 @@ void init_idle(struct task_struct *idle, int cpu)
+@@ -5635,7 +5701,9 @@ void init_idle(struct task_struct *idle, int cpu)
  
  	/* Set the preempt count _outside_ the spinlocks! */
  	init_idle_preempt_count(idle, cpu);
@@ -368,7 +368,7 @@ index c8af959..ddf157c 100644
  	 * The idle tasks have their own, simple scheduling class:
  	 */
 diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
-index 7161616..e1f43f5 100644
+index 8afd163..b137fc3 100644
 --- a/kernel/sched/fair.c
 +++ b/kernel/sched/fair.c
 @@ -3975,7 +3975,7 @@ check_preempt_tick(struct cfs_rq *cfs_rq, struct sched_entity *curr)
@@ -416,7 +416,7 @@ index 7161616..e1f43f5 100644
  			return;
  		}
  		hrtick_start(rq, delta);
-@@ -7769,7 +7769,7 @@ static void check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_
+@@ -7770,7 +7770,7 @@ static void check_preempt_wakeup(struct rq *rq, struct task_struct *p, int wake_
  	return;
  
  preempt:
@@ -425,7 +425,7 @@ index 7161616..e1f43f5 100644
  	/*
  	 * Only set the backward buddy when the current task is still
  	 * on the rq. This can happen when a wakeup gets interleaved
-@@ -10789,7 +10789,7 @@ static void task_fork_fair(struct task_struct *p)
+@@ -10790,7 +10790,7 @@ static void task_fork_fair(struct task_struct *p)
  		 * 'current' within the tree based on its new key value.
  		 */
  		swap(curr->vruntime, se->vruntime);
@@ -434,7 +434,7 @@ index 7161616..e1f43f5 100644
  	}
  
  	se->vruntime -= cfs_rq->min_vruntime;
-@@ -10813,7 +10813,7 @@ prio_changed_fair(struct rq *rq, struct task_struct *p, int oldprio)
+@@ -10814,7 +10814,7 @@ prio_changed_fair(struct rq *rq, struct task_struct *p, int oldprio)
  	 */
  	if (rq->curr == p) {
  		if (p->prio > oldprio)
@@ -478,7 +478,7 @@ index 0c6e005..0fd9267 100644
  extern void init_rt_bandwidth(struct rt_bandwidth *rt_b, u64 period, u64 runtime);
  
 diff --git a/kernel/trace/trace.c b/kernel/trace/trace.c
-index 2db6534..607f0ba 100644
+index 3dddc21..6cddbf5 100644
 --- a/kernel/trace/trace.c
 +++ b/kernel/trace/trace.c
 @@ -1924,6 +1924,7 @@ tracing_generic_entry_update(struct trace_entry *entry, unsigned long flags,
