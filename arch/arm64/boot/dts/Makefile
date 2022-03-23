@@ -128,7 +128,7 @@ $(DTBO_NEW_RULE_LIST):
 	$(call if_changed_dep,dtc)
 
 dtbs: $(DTB_OBJS) $(DTBO_OBJS) FORCE
-	cp -u $(DTB_OBJS) $(DTBO_OBJS) arch/arm64/boot/dts/
+	cp -u $(DTB_OBJS) $(DTBO_OBJS) arch/arm64/boot/dts/ || echo "No dtbs"
 
 clean-files := dts/*.dtb *.dtb *.dtbo
 clean-dirs := dts/_ddot_
