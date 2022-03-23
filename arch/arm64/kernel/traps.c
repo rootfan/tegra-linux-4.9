@@ -283,11 +283,10 @@ void die(const char *str, struct pt_regs *regs, int err)
 	int ret;
 	unsigned long flags;
 
-	local_irq_save(flags);
+	raw_spin_lock_irqsave(&die_lock, flags);
 
 	oops_enter();
 
-	raw_spin_lock(&die_lock);
 	console_verbose();
 	bust_spinlocks(1);
 	ret = __die(str, err, regs);
@@ -297,7 +296,6 @@ void die(const char *str, struct pt_regs *regs, int err)
 
 	bust_spinlocks(0);
 	add_taint(TAINT_DIE, LOCKDEP_NOW_UNRELIABLE);
-	raw_spin_unlock(&die_lock);
 	oops_exit();
 
 	if (in_interrupt())
@@ -305,7 +303,7 @@ void die(const char *str, struct pt_regs *regs, int err)
 	if (panic_on_oops)
 		panic("Fatal exception");
 
-	local_irq_restore(flags);
+	raw_spin_unlock_irqrestore(&die_lock, flags);
 
 	if (ret != NOTIFY_STOP)
 		do_exit(SIGSEGV);
@@ -352,9 +350,10 @@ static int call_undef_hook(struct pt_regs *regs)
 	int (*fn)(struct pt_regs *regs, u32 instr) = NULL;
 	void __user *pc = (void __user *)instruction_pointer(regs);
 
-	if (!user_mode(regs)) {
-		instr = *((u32 *)pc);
-	} else if (compat_thumb_mode(regs)) {
+	if (!user_mode(regs))
+		return 1;
+
+	if (compat_thumb_mode(regs)) {
 		/* 16-bit Thumb instruction */
 		if (get_user(instr, (u16 __user *)pc))
 			goto exit;

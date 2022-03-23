@@ -124,7 +124,7 @@ static void mem_abort_decode(unsigned int esr)
 }
 
 /*
- * Dump out the page tables associated with 'addr' in mm 'mm'.
+ * Dump out the page tables associated with 'addr' in the currently active mm.
  */
 void show_pte(unsigned long addr)
 {
@@ -257,8 +257,8 @@ static inline bool is_permission_fault(unsigned int esr, struct pt_regs *regs,
 /*
  * The kernel tried to access some page that wasn't present.
  */
-static void __do_kernel_fault(struct mm_struct *mm, unsigned long addr,
-			      unsigned int esr, struct pt_regs *regs)
+static void __do_kernel_fault(unsigned long addr, unsigned int esr,
+			      struct pt_regs *regs)
 {
 	const char *msg;
 
@@ -273,22 +273,9 @@ static void __do_kernel_fault(struct mm_struct *mm, unsigned long addr,
 	 * No handler, we'll have to terminate things with extreme prejudice.
 	 */
 	bust_spinlocks(1);
-
-	if (is_permission_fault(esr, regs, addr)) {
-		if (esr & ESR_ELx_WNR)
-			msg = "write to read-only memory";
-		else
-			msg = "read from unreadable memory";
-	} else if (addr < PAGE_SIZE) {
-		msg = "NULL pointer dereference";
-	} else {
-		msg = "paging request";
-	}
-
-	pr_alert("Unable to handle kernel %s at virtual address %08lx\n", msg,
-					 addr);
-
-	mem_abort_decode(esr);
+	pr_alert("Unable to handle kernel %s at virtual address %08lx\n",
+		 (addr < PAGE_SIZE) ? "NULL pointer dereference" :
+		 "paging request", addr);
 
 	show_pte(addr);
 	die("Oops", regs, esr);
@@ -332,14 +319,7 @@ static void __do_user_fault(struct task_struct *tsk, unsigned long addr,
 		pr_info("%s[%d]: unhandled %s (%d) at 0x%08lx, esr 0x%03x\n",
 			tsk->comm, task_pid_nr(tsk), inf->name, sig,
 			addr, esr);
-		show_pte(addr);
 		show_regs(regs);
-		show_map(tsk, instruction_pointer(regs));
-		if (compat_user_mode(regs))
-			show_map(tsk, regs->compat_lr);
-		else
-			show_map(tsk, regs->regs[30]);
-		pr_alert("vdso base = 0x%lx\n", (unsigned long)tsk->mm->context.vdso);
 	}
 
 	tsk->thread.fault_address = addr;
@@ -355,7 +335,6 @@ static void __do_user_fault(struct task_struct *tsk, unsigned long addr,
 static void do_bad_area(unsigned long addr, unsigned int esr, struct pt_regs *regs)
 {
 	struct task_struct *tsk = current;
-	struct mm_struct *mm = tsk->active_mm;
 	const struct fault_info *inf;
 
 	/*
@@ -366,7 +345,7 @@ static void do_bad_area(unsigned long addr, unsigned int esr, struct pt_regs *re
 		inf = esr_to_fault_info(esr);
 		__do_user_fault(tsk, addr, esr, inf->sig, inf->code, regs);
 	} else
-		__do_kernel_fault(mm, addr, esr, regs);
+		__do_kernel_fault(addr, esr, regs);
 }
 
 #define VM_FAULT_BADMAP		0x010000
@@ -790,11 +769,12 @@ void __init hook_debug_fault_code(int nr,
 	debug_fault_info[nr].name	= name;
 }
 
-asmlinkage int __exception do_debug_exception(unsigned long addr,
+asmlinkage int __exception do_debug_exception(unsigned long addr_if_watchpoint,
 					      unsigned int esr,
 					      struct pt_regs *regs)
 {
 	const struct fault_info *inf = debug_fault_info + DBG_ESR_EVT(esr);
+	unsigned long pc = instruction_pointer(regs);
 	struct siginfo info;
 	int rv;
 
@@ -805,19 +785,19 @@ asmlinkage int __exception do_debug_exception(unsigned long addr,
 	if (interrupts_enabled(regs))
 		trace_hardirqs_off();
 
-	if (user_mode(regs) && instruction_pointer(regs) > TASK_SIZE)
+	if (user_mode(regs) && pc > TASK_SIZE)
 		arm64_apply_bp_hardening();
 
-	if (!inf->fn(addr, esr, regs)) {
+	if (!inf->fn(addr_if_watchpoint, esr, regs)) {
 		rv = 1;
 	} else {
 		pr_alert("Unhandled debug exception: %s (0x%08x) at 0x%016lx\n",
-			 inf->name, esr, addr);
+			 inf->name, esr, pc);
 
 		info.si_signo = inf->sig;
 		info.si_errno = 0;
 		info.si_code  = inf->code;
-		info.si_addr  = (void __user *)addr;
+		info.si_addr  = (void __user *)pc;
 		arm64_notify_die("", regs, &info, 0);
 		rv = 0;
 	}

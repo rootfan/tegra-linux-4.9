@@ -42,14 +42,6 @@
 #include <linux/gfp.h>
 #include <linux/module.h>
 
-/* allow Tegra qdisc to restrict tcp rx datarate */
-#ifdef CONFIG_NET_SCH_TEGRA
-uint tcp_window_divisor = 1;
-uint tcp_window_max = 0;
-module_param(tcp_window_divisor, uint, 0644);
-module_param(tcp_window_max, uint, 0644);
-#endif
-
 /* People can turn this off for buggy TCP's found in printers etc. */
 int sysctl_tcp_retrans_collapse __read_mostly = 1;
 
@@ -305,14 +297,6 @@ static u16 tcp_select_window(struct sock *sk)
 		new_win = min(new_win, MAX_TCP_WINDOW);
 	else
 		new_win = min(new_win, (65535U << tp->rx_opt.rcv_wscale));
-
-#ifdef CONFIG_NET_SCH_TEGRA
-	if ((tcp_window_max > 0) && (new_win > tcp_window_max)) {
-		pr_debug("%s: tcp_window_max %u: new_win %d -> %d\n",
-			__func__, tcp_window_max, new_win, tcp_window_max);
-		new_win = min(new_win, tcp_window_max);
-	}
-#endif
 
 	/* RFC1323 scaling applied */
 	new_win >>= tp->rx_opt.rcv_wscale;
@@ -1012,17 +996,6 @@ static int __tcp_transmit_skb(struct sock *sk, struct sk_buff *skb,
 	skb_shinfo(skb)->gso_type = sk->sk_gso_type;
 	if (likely(!(tcb->tcp_flags & TCPHDR_SYN))) {
 		th->window      = htons(tcp_select_window(sk));
-#ifdef CONFIG_NET_SCH_TEGRA
-		if (tcp_window_divisor > 1) {
-			unsigned short window = ntohs(th->window);
-			pr_debug("%s: skb %p len %d window %hu"
-				" scale %d tp->rcv_wnd %u\n",
-				__func__, skb, skb->len, window,
-				tp->rx_opt.rcv_wscale, tp->rcv_wnd);
-			window /= tcp_window_divisor;
-			th->window = htons(window);
-		}
-#endif
 		tcp_ecn_send(sk, skb, th, tcp_header_size);
 	} else {
 		/* RFC1323: The window in SYN & SYN/ACK segments
@@ -1202,6 +1175,7 @@ int tcp_fragment(struct sock *sk, struct sk_buff *skb, u32 len,
 	struct tcp_sock *tp = tcp_sk(sk);
 	struct sk_buff *buff;
 	int nsize, old_factor;
+	long limit;
 	int nlen;
 	u8 flags;
 
@@ -1212,7 +1186,15 @@ int tcp_fragment(struct sock *sk, struct sk_buff *skb, u32 len,
 	if (nsize < 0)
 		nsize = 0;
 
-	if (unlikely((sk->sk_wmem_queued >> 1) > sk->sk_sndbuf)) {
+	/* tcp_sendmsg() can overshoot sk_wmem_queued by one full size skb.
+	 * We need some allowance to not penalize applications setting small
+	 * SO_SNDBUF values.
+	 * Also allow first and last skb in retransmit queue to be split.
+	 */
+	limit = sk->sk_sndbuf + 2 * SKB_TRUESIZE(GSO_MAX_SIZE);
+	if (unlikely((sk->sk_wmem_queued >> 1) > limit &&
+		     skb != tcp_rtx_queue_head(sk) &&
+		     skb != tcp_rtx_queue_tail(sk))) {
 		NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPWQUEUETOOBIG);
 		return -ENOMEM;
 	}
@@ -1961,7 +1943,7 @@ static bool tcp_can_coalesce_send_queue_head(struct sock *sk, int len)
 		if (len <= skb->len)
 			break;
 
-		if (unlikely(TCP_SKB_CB(skb)->eor))
+		if (unlikely(TCP_SKB_CB(skb)->eor) || tcp_has_tx_tstamp(skb))
 			return false;
 
 		len -= skb->len;
@@ -2084,6 +2066,7 @@ static int tcp_mtu_probe(struct sock *sk)
 			 * we need to propagate it to the new skb.
 			 */
 			TCP_SKB_CB(nskb)->eor = TCP_SKB_CB(skb)->eor;
+			tcp_skb_collapse_tstamp(nskb, skb);
 			tcp_unlink_write_queue(skb, sk);
 			sk_wmem_free_skb(sk, skb);
 		} else {
@@ -2377,12 +2360,16 @@ void tcp_send_loss_probe(struct sock *sk)
 		skb = tcp_write_queue_tail(sk);
 	}
 
+	if (unlikely(!skb)) {
+		WARN_ONCE(tp->packets_out,
+			  "invalid inflight: %u state %u cwnd %u mss %d\n",
+			  tp->packets_out, sk->sk_state, tp->snd_cwnd, mss);
+		inet_csk(sk)->icsk_pending = 0;
+		return;
+	}
+
 	/* At most one outstanding TLP retransmission. */
 	if (tp->tlp_high_seq)
-		goto rearm_timer;
-
-	/* Retransmit last segment. */
-	if (WARN_ON(!skb))
 		goto rearm_timer;
 
 	if (skb_still_in_host_queue(sk, skb))
