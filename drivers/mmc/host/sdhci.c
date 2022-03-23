@@ -2,7 +2,7 @@
  *  linux/drivers/mmc/host/sdhci.c - Secure Digital Host Controller Interface driver
  *
  *  Copyright (C) 2005-2008 Pierre Ossman, All Rights Reserved.
- *  Copyright (c) 2012-2019, NVIDIA CORPORATION.  All rights reserved.
+ *  Copyright (c) 2012-2017, NVIDIA CORPORATION.  All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,7 +15,6 @@
  */
 
 #include <linux/delay.h>
-#include <linux/device.h>
 #include <linux/highmem.h>
 #include <linux/io.h>
 #include <linux/module.h>
@@ -51,43 +50,6 @@ static void sdhci_finish_data(struct sdhci_host *);
 static void sdhci_enable_preset_value(struct sdhci_host *host, bool enable);
 static void sdhci_regulator_config_pre(struct mmc_host *mmc, int vdd,
 						bool flag);
-
-static int error_data_timeout;
-static int error_data_end_bit;
-static int error_data_crc;
-static int error_data_adma;
-static ssize_t
-error_stats_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	int bytes_written = 0;
-
-	bytes_written += sprintf(buf + bytes_written,
-				"%d %d %d %d\n",
-				error_data_timeout,
-				error_data_end_bit,
-				error_data_crc,
-				error_data_adma);
-	return bytes_written;
-}
-
-static ssize_t
-error_stats_store(struct device *dev, struct device_attribute *attr,
-		   const char *buf, size_t count)
-{
-	int ret, error_stats = 0;
-
-	ret = kstrtoint(buf, 10, &error_stats);
-	if (ret != 0 || error_stats != 0)
-		return -EINVAL;
-
-	error_data_timeout = error_stats;
-	error_data_end_bit = error_stats;
-	error_data_crc = error_stats;
-	error_data_adma = error_stats;
-	return count;
-}
-
-static DEVICE_ATTR(error_stats, 0644, error_stats_show, error_stats_store);
 
 static void sdhci_enable_host_interrupts(struct mmc_host *mmc, bool enable)
 {
@@ -1031,8 +993,7 @@ static bool sdhci_needs_reset(struct sdhci_host *host, struct mmc_request *mrq)
 	return (!(host->flags & SDHCI_DEVICE_DEAD) &&
 		((mrq->cmd && mrq->cmd->error) ||
 		 (mrq->sbc && mrq->sbc->error) ||
-		 (mrq->data && ((mrq->data->error && !mrq->data->stop) ||
-				(mrq->data->stop && mrq->data->stop->error))) ||
+		 (mrq->data && mrq->data->stop && mrq->data->stop->error) ||
 		 (host->quirks & SDHCI_QUIRK_RESET_AFTER_REQUEST)));
 }
 
@@ -1084,6 +1045,16 @@ static void sdhci_finish_data(struct sdhci_host *host)
 	host->data = NULL;
 	host->data_cmd = NULL;
 
+	/*
+	 * The controller needs a reset of internal state machines upon error
+	 * conditions.
+	 */
+	if (data->error) {
+		if (!host->cmd || host->cmd == data_cmd)
+			sdhci_do_reset(host, SDHCI_RESET_CMD);
+		sdhci_do_reset(host, SDHCI_RESET_DATA);
+	}
+
 	if ((host->flags & (SDHCI_REQ_USE_DMA | SDHCI_USE_ADMA)) ==
 	    (SDHCI_REQ_USE_DMA | SDHCI_USE_ADMA))
 		sdhci_adma_table_post(host, data);
@@ -1108,23 +1079,6 @@ static void sdhci_finish_data(struct sdhci_host *host)
 	if (data->stop &&
 	    (data->error ||
 	     !data->mrq->sbc)) {
-
-		/*
-		 * The controller needs a reset of internal state machines
-		 * upon error conditions.
-		 */
-		if (data->error) {
-			if (host->quirks2 &
-				SDHCI_QUIRK2_ISSUE_CMD_DAT_RESET_TOGETHER) {
-				sdhci_do_reset(host, SDHCI_RESET_CMD |
-					SDHCI_RESET_DATA);
-			} else {
-				sdhci_do_reset(host, SDHCI_RESET_DATA);
-				if (!host->cmd || host->cmd == data_cmd)
-					sdhci_do_reset(host, SDHCI_RESET_CMD);
-			}
-		}
-
 		/*
 		 * 'cap_cmd_during_tfr' request must not use the command line
 		 * after mmc_command_done() has been called. It is upper layer's
@@ -1650,13 +1604,11 @@ static void sdhci_clear_cqe_interrupt(struct mmc_host *mmc, u32 intmask)
 	}
 	if (intmask & SDHCI_INT_DATA_TIMEOUT) {
 		cq_host->data->error = -ETIMEDOUT;
-		error_data_timeout++;
 		pr_err("%s: Data Timeout error, intmask: %x Interface clock = %uHz\n",
 			mmc_hostname(host->mmc), intmask, host->max_clk);
 		sdhci_dumpregs(host);
 	} else if (intmask & SDHCI_INT_DATA_END_BIT) {
 		cq_host->data->error = -EILSEQ;
-		error_data_end_bit++;
 		pr_err("%s: Data END Bit error, intmask: %x Interface clock = %uHz\n",
 			mmc_hostname(host->mmc), intmask, host->max_clk);
 		sdhci_dumpregs(host);
@@ -1664,7 +1616,6 @@ static void sdhci_clear_cqe_interrupt(struct mmc_host *mmc, u32 intmask)
 		SDHCI_GET_CMD(sdhci_readw(host, SDHCI_COMMAND))
 			!= MMC_BUS_TEST_R) {
 		cq_host->data->error = -EILSEQ;
-		error_data_crc++;
 		pr_err("%s: Data CRC error, intmask: %x Interface clock = %uHz\n",
 			mmc_hostname(host->mmc), intmask, host->max_clk);
 		sdhci_dumpregs(host);
@@ -1676,7 +1627,6 @@ static void sdhci_clear_cqe_interrupt(struct mmc_host *mmc, u32 intmask)
 			SDHCI_ADMA_ADDRESS, readl(host->ioaddr +
 			SDHCI_ADMA_ADDRESS));
 		cq_host->data->error = -EIO;
-		error_data_adma++;
 	} else if (intmask & SDHCI_INT_CRC) {
 		pr_err("%s: Command CRC error, intmask: %x Interface clock = %uHz\n",
 			mmc_hostname(host->mmc), intmask, host->max_clk);
@@ -1771,7 +1721,9 @@ void sdhci_set_uhs_signaling(struct sdhci_host *host, unsigned timing)
 		ctrl_2 |= SDHCI_CTRL_UHS_SDR104;
 	else if (timing == MMC_TIMING_UHS_SDR12)
 		ctrl_2 |= SDHCI_CTRL_UHS_SDR12;
-	else if (timing == MMC_TIMING_UHS_SDR25)
+	else if (timing == MMC_TIMING_SD_HS ||
+		 timing == MMC_TIMING_MMC_HS ||
+		 timing == MMC_TIMING_UHS_SDR25)
 		ctrl_2 |= SDHCI_CTRL_UHS_SDR25;
 	else if (timing == MMC_TIMING_UHS_SDR50) {
 		if (host->quirks2 & SDHCI_QUIRK2_SEL_SDR104_UHS_MODE_IN_SDR50)
@@ -2370,7 +2322,7 @@ static int sdhci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 		spin_lock_irqsave(&host->lock, flags);
 
 		if (!host->tuning_done) {
-			pr_info(DRIVER_NAME ": Timeout waiting for Buffer Read Ready interrupt during tuning procedure, falling back to fixed sampling clock\n");
+			pr_debug(DRIVER_NAME ": Timeout waiting for Buffer Read Ready interrupt during tuning procedure, falling back to fixed sampling clock\n");
 			sdhci_dumpregs(host);
 			ctrl = sdhci_readw(host, SDHCI_HOST_CONTROL2);
 			ctrl &= ~SDHCI_CTRL_TUNED_CLK;
@@ -2791,7 +2743,7 @@ static void sdhci_timeout_data_timer(unsigned long data)
  *                                                                           *
 \*****************************************************************************/
 
-static void sdhci_cmd_irq(struct sdhci_host *host, u32 intmask)
+static void sdhci_cmd_irq(struct sdhci_host *host, u32 intmask, u32 *intmask_p)
 {
 	if (!host->cmd) {
 		/*
@@ -2817,20 +2769,12 @@ static void sdhci_cmd_irq(struct sdhci_host *host, u32 intmask)
 			host->cmd->error = -EILSEQ;
 		}
 
-		/*
-		 * If this command initiates a data phase and a response
-		 * CRC error is signalled, the card can start transferring
-		 * data - the card may have received the command without
-		 * error.  We must not terminate the mmc_request early.
-		 *
-		 * If the card did not receive the command or returned an
-		 * error which prevented it sending data, the data phase
-		 * will time out.
-		 */
+		/* Treat data command CRC error the same as data CRC error */
 		if (host->cmd->data &&
 		    (intmask & (SDHCI_INT_CRC | SDHCI_INT_TIMEOUT)) ==
 		     SDHCI_INT_CRC) {
 			host->cmd = NULL;
+			*intmask_p |= SDHCI_INT_DATA_CRC;
 			return;
 		}
 
@@ -2937,25 +2881,21 @@ static void sdhci_data_irq(struct sdhci_host *host, u32 intmask)
 
 	if (intmask & SDHCI_INT_DATA_TIMEOUT) {
 		host->data->error = -ETIMEDOUT;
-		error_data_timeout++;
 		pr_err("%s: Data timeout error\n", mmc_hostname(host->mmc));
 		sdhci_dumpregs(host);
 	} else if (intmask & SDHCI_INT_DATA_END_BIT) {
 		host->data->error = -EILSEQ;
-		error_data_end_bit++;
 		pr_err("%s: Data end bit error\n", mmc_hostname(host->mmc));
 		sdhci_dumpregs(host);
 	} else if ((intmask & SDHCI_INT_DATA_CRC) &&
 		SDHCI_GET_CMD(sdhci_readw(host, SDHCI_COMMAND))
 			!= MMC_BUS_TEST_R) {
 		host->data->error = -EILSEQ;
-		error_data_crc++;
 		pr_err("%s: Data CRC error\n", mmc_hostname(host->mmc));
 		sdhci_dumpregs(host);
 	} else if (intmask & SDHCI_INT_ADMA_ERROR) {
 		pr_err("%s: ADMA error\n", mmc_hostname(host->mmc));
 		sdhci_adma_show_error(host);
-		error_data_adma++;
 		host->data->error = -EIO;
 		if (host->ops->adma_workaround)
 			host->ops->adma_workaround(host, intmask);
@@ -3102,7 +3042,7 @@ static irqreturn_t sdhci_irq(int irq, void *dev_id)
 		}
 
 		if (intmask & SDHCI_INT_CMD_MASK)
-			sdhci_cmd_irq(host, intmask & SDHCI_INT_CMD_MASK);
+			sdhci_cmd_irq(host, intmask & SDHCI_INT_CMD_MASK, &intmask);
 
 		if (intmask & SDHCI_INT_DATA_MASK)
 			sdhci_data_irq(host, intmask & SDHCI_INT_DATA_MASK);
@@ -3741,11 +3681,13 @@ int sdhci_setup_host(struct sdhci_host *host)
 	if (host->ops->get_min_clock)
 		mmc->f_min = host->ops->get_min_clock(host);
 	else if (host->version >= SDHCI_SPEC_300) {
-		if (host->clk_mul) {
-			mmc->f_min = (host->max_clk * host->clk_mul) / 1024;
+		if (host->clk_mul)
 			max_clk = host->max_clk * host->clk_mul;
-		} else
-			mmc->f_min = host->max_clk / SDHCI_MAX_DIV_SPEC_300;
+		/*
+		 * Divided Clock Mode minimum clock rate is always less than
+		 * Programmable Clock Mode minimum clock rate.
+		 */
+		mmc->f_min = host->max_clk / SDHCI_MAX_DIV_SPEC_300;
 	} else
 		mmc->f_min = host->max_clk / SDHCI_MAX_DIV_SPEC_200;
 
@@ -4132,9 +4074,6 @@ int __sdhci_add_host(struct sdhci_host *host)
 
 	sdhci_enable_card_detection(host);
 
-	if (device_create_file(&mmc->class_dev, &dev_attr_error_stats))
-		pr_err("%s: failed to create error stats node.\n",
-				mmc_hostname(mmc));
 	return 0;
 
 unled:
@@ -4220,7 +4159,6 @@ void sdhci_remove_host(struct sdhci_host *host, int dead)
 
 	host->adma_table = NULL;
 	host->align_buffer = NULL;
-	device_remove_file(&mmc->class_dev, &dev_attr_error_stats);
 }
 
 EXPORT_SYMBOL_GPL(sdhci_remove_host);
@@ -4240,10 +4178,6 @@ EXPORT_SYMBOL_GPL(sdhci_free_host);
 
 static int __init sdhci_drv_init(void)
 {
-	error_data_timeout = 0;
-	error_data_end_bit = 0;
-	error_data_crc = 0;
-	error_data_adma = 0;
 	pr_info(DRIVER_NAME
 		": Secure Digital Host Controller Interface driver\n");
 	pr_info(DRIVER_NAME ": Copyright(c) Pierre Ossman\n");
