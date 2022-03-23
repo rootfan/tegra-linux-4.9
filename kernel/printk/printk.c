@@ -712,7 +712,7 @@ struct devkmsg_user {
 static ssize_t devkmsg_write(struct kiocb *iocb, struct iov_iter *from)
 {
 	char *buf, *line;
-	int level = default_devkmsg_loglevel;
+	int level = default_message_loglevel;
 	int facility = 1;	/* LOG_USER */
 	struct file *file = iocb->ki_filp;
 	struct devkmsg_user *user = file->private_data;
@@ -1515,35 +1515,6 @@ SYSCALL_DEFINE3(syslog, int, type, char __user *, buf, int, len)
 }
 
 /*
- * Call the console drivers with CON_FORCE_LEVEL set to
- * write out force_text.
- * The console lock must be held.
- */
-static void call_force_console_drivers(const char *force_text,
-					size_t force_len)
-{
-	struct console *con;
-
-	if (!console_drivers)
-		return;
-
-	for_each_console(con) {
-		if (exclusive_console && con != exclusive_console)
-			continue;
-		if (!(con->flags & CON_ENABLED))
-			continue;
-		if (!con->write)
-			continue;
-		if (!cpu_online(smp_processor_id()) &&
-		    !(con->flags & CON_ANYTIME))
-			continue;
-
-		if (con->flags & CON_FORCE_LEVEL)
-			con->write(con, force_text, force_len);
-	}
-}
-
-/*
  * Call the console drivers, asking them to write out
  * log_buf[start] to log_buf[end - 1].
  * The console_lock must be held.
@@ -1569,10 +1540,6 @@ static void call_console_drivers(int level,
 		if (!cpu_online(smp_processor_id()) &&
 		    !(con->flags & CON_ANYTIME))
 			continue;
-		/* CON_FORCE_LEVEL consoles are handled separately */
-		if (con->flags & CON_FORCE_LEVEL)
-			continue;
-
 		if (con->flags & CON_EXTENDED)
 			con->write(con, ext_text, ext_len);
 		else
@@ -1985,7 +1952,6 @@ static struct cont {
 	size_t len;
 	size_t cons;
 	u8 level;
-	u8 facility;
 	bool flushed:1;
 } cont;
 static char *log_text(const struct printk_log *msg) { return NULL; }
@@ -2180,8 +2146,8 @@ static int console_cpu_notify(struct notifier_block *self,
 	case CPU_DEAD:
 	case CPU_DOWN_FAILED:
 	case CPU_UP_CANCELED:
-		if (console_trylock())
-			console_unlock();
+		console_lock();
+		console_unlock();
 	}
 	return NOTIFY_OK;
 }
@@ -2278,7 +2244,6 @@ static void console_cont_flush(char *text, size_t size)
 {
 	unsigned long flags;
 	size_t len;
-	size_t cons;
 
 	raw_spin_lock_irqsave(&logbuf_lock, flags);
 
@@ -2433,7 +2398,6 @@ skip:
 
 		stop_critical_timings();	/* don't trace print latency */
 		call_console_drivers(level, ext_text, ext_len, text, len);
-		call_force_console_drivers(force_text, force_len);
 		start_critical_timings();
 		local_irq_restore(flags);
 
@@ -2804,13 +2768,36 @@ int unregister_console(struct console *console)
 }
 EXPORT_SYMBOL(unregister_console);
 
+/*
+ * Some boot consoles access data that is in the init section and which will
+ * be discarded after the initcalls have been run. To make sure that no code
+ * will access this data, unregister the boot consoles in a late initcall.
+ *
+ * If for some reason, such as deferred probe or the driver being a loadable
+ * module, the real console hasn't registered yet at this point, there will
+ * be a brief interval in which no messages are logged to the console, which
+ * makes it difficult to diagnose problems that occur during this time.
+ *
+ * To mitigate this problem somewhat, only unregister consoles whose memory
+ * intersects with the init section. Note that code exists elsewhere to get
+ * rid of the boot console as soon as the proper console shows up, so there
+ * won't be side-effects from postponing the removal.
+ */
 static int __init printk_late_init(void)
 {
 	struct console *con;
 
 	for_each_console(con) {
 		if (!keep_bootcon && con->flags & CON_BOOT) {
-			unregister_console(con);
+			/*
+			 * Make sure to unregister boot consoles whose data
+			 * resides in the init section before the init section
+			 * is discarded. Boot consoles whose data will stick
+			 * around will automatically be unregistered when the
+			 * proper console replaces them.
+			 */
+			if (init_section_intersects(con, sizeof(*con)))
+				unregister_console(con);
 		}
 	}
 	hotcpu_notifier(console_cpu_notify, 0);

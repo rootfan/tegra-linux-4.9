@@ -253,14 +253,7 @@ static int remove_migration_pte(struct page *new, struct vm_area_struct *vma,
 		pte = arch_make_huge_pte(pte, vma, new, 0);
 	}
 #endif
-	if (unlikely(is_device_private_page(new))) {
-		entry = make_device_private_entry(new, pte_write(pte));
-		pte = swp_entry_to_pte(entry);
-	} else if (is_device_public_page(new)) {
-		pte = pte_mkdevmap(pte);
-		flush_dcache_page(new);
-	} else
-		flush_dcache_page(new);
+	flush_dcache_page(new);
 	set_pte_at(mm, addr, ptep, pte);
 
 	if (PageHuge(new)) {
@@ -324,31 +317,18 @@ void __migration_entry_wait(struct mm_struct *mm, pte_t *ptep,
 
 	page = migration_entry_to_page(entry);
 
-	if (dma_contiguous_should_replace_page(page)) {
-		pte_unmap_unlock(ptep, ptl);
-		/* don't take ref on page, as it causes
-		 * migration to get aborted in between.
-		 * migration goes ahead after locking the page.
-		 * Wait on page to be unlocked. In case page get
-		 * unlocked, allocated and locked again forever,
-		 * before this function call, it would timeout in
-		 * next tick and exit.
-		 */
-		wait_on_page_locked_timeout(page);
-	} else {
-		/*
-		 * Once radix-tree replacement of page migration started, page_count
-		 * *must* be zero. And, we don't want to call wait_on_page_locked()
-		 * against a page without get_page().
-		 * So, we use get_page_unless_zero(), here. Even failed, page fault
-		 * will occur again.
-		 */
-		if (!get_page_unless_zero(page))
-			goto out;
-		pte_unmap_unlock(ptep, ptl);
-		wait_on_page_locked(page);
-		put_page(page);
-	}
+	/*
+	 * Once radix-tree replacement of page migration started, page_count
+	 * *must* be zero. And, we don't want to call wait_on_page_locked()
+	 * against a page without get_page().
+	 * So, we use get_page_unless_zero(), here. Even failed, page fault
+	 * will occur again.
+	 */
+	if (!get_page_unless_zero(page))
+		goto out;
+	pte_unmap_unlock(ptep, ptl);
+	wait_on_page_locked(page);
+	put_page(page);
 	return;
 out:
 	pte_unmap_unlock(ptep, ptl);
@@ -436,13 +416,6 @@ int migrate_page_move_mapping(struct address_space *mapping,
 	int dirty;
 	int expected_count = 1 + extra_count;
 	void **pslot;
-
-	/*
-	 * Device public or private pages have an extra refcount as they are
-	 * ZONE_DEVICE pages.
-	 */
-	expected_count += is_device_private_page(page);
-	expected_count += is_device_public_page(page);
 
 	if (!mapping) {
 		/* Anonymous page without mapping */
@@ -648,9 +621,14 @@ static void copy_huge_page(struct page *dst, struct page *src)
 /*
  * Copy the page to its new location
  */
-void migrate_page_states(struct page *newpage, struct page *page)
+void migrate_page_copy(struct page *newpage, struct page *page)
 {
 	int cpupid;
+
+	if (PageHuge(page) || PageTransHuge(page))
+		copy_huge_page(newpage, page);
+	else
+		copy_highpage(newpage, page);
 
 	if (PageError(page))
 		SetPageError(newpage);
@@ -707,17 +685,6 @@ void migrate_page_states(struct page *newpage, struct page *page)
 
 	mem_cgroup_migrate(page, newpage);
 }
-EXPORT_SYMBOL(migrate_page_states);
-
-void migrate_page_copy(struct page *newpage, struct page *page)
-{
-	if (PageHuge(page) || PageTransHuge(page))
-		copy_huge_page(newpage, page);
-	else
-		copy_highpage(newpage, page);
-
-	migrate_page_states(newpage, page);
-}
 EXPORT_SYMBOL(migrate_page_copy);
 
 /************************************************************
@@ -743,10 +710,7 @@ int migrate_page(struct address_space *mapping,
 	if (rc != MIGRATEPAGE_SUCCESS)
 		return rc;
 
-	if (mode != MIGRATE_SYNC_NO_COPY)
-		migrate_page_copy(newpage, page);
-	else
-		migrate_page_states(newpage, page);
+	migrate_page_copy(newpage, page);
 	return MIGRATEPAGE_SUCCESS;
 }
 EXPORT_SYMBOL(migrate_page);
@@ -796,15 +760,12 @@ int buffer_migrate_page(struct address_space *mapping,
 
 	SetPagePrivate(newpage);
 
-	if (mode != MIGRATE_SYNC_NO_COPY)
-		migrate_page_copy(newpage, page);
-	else
-		migrate_page_states(newpage, page);
+	migrate_page_copy(newpage, page);
 
 	bh = head;
 	do {
 		unlock_buffer(bh);
-		put_bh(bh);
+ 		put_bh(bh);
 		bh = bh->b_this_page;
 
 	} while (bh != head);
@@ -863,13 +824,8 @@ static int fallback_migrate_page(struct address_space *mapping,
 {
 	if (PageDirty(page)) {
 		/* Only writeback pages in full synchronous migration */
-		switch (mode) {
-		case MIGRATE_SYNC:
-		case MIGRATE_SYNC_NO_COPY:
-			break;
-		default:
+		if (mode != MIGRATE_SYNC)
 			return -EBUSY;
-		}
 		return writeout(mapping, page);
 	}
 
@@ -1006,11 +962,7 @@ static int __unmap_and_move(struct page *page, struct page *newpage,
 		 * the retry loop is too short and in the sync-light case,
 		 * the overhead of stalling is too much
 		 */
-		switch (mode) {
-		case MIGRATE_SYNC:
-		case MIGRATE_SYNC_NO_COPY:
-			break;
-		default:
+		if (mode != MIGRATE_SYNC) {
 			rc = -EBUSY;
 			goto out_unlock;
 		}
@@ -1283,15 +1235,8 @@ static int unmap_and_move_huge_page(new_page_t get_new_page,
 		return -ENOMEM;
 
 	if (!trylock_page(hpage)) {
-		if (!force)
+		if (!force || mode != MIGRATE_SYNC)
 			goto out;
-		switch (mode) {
-		case MIGRATE_SYNC:
-		case MIGRATE_SYNC_NO_COPY:
-			break;
-		default:
-			goto out;
-		}
 		lock_page(hpage);
 	}
 
@@ -1448,54 +1393,6 @@ out:
 		current->flags &= ~PF_SWAPWRITE;
 
 	return rc;
-}
-
-/*
- * migrate_replace_page
- *
- * The function takes one single page and a target page (newpage) and
- * tries to migrate data to the target page. The caller must ensure that
- * the source page is locked with one additional get_page() call, which
- * will be freed during the migration. The caller also must release newpage
- * if migration fails, otherwise the ownership of the newpage is taken.
- * Source page is released if migration succeeds.
- *
- * Return: error code or 0 on success.
- */
-int migrate_replace_page(struct page *page, struct page *newpage)
-{
-	struct zone *zone = page_zone(page);
-	unsigned long flags;
-	int ret = -EAGAIN;
-	int pass;
-
-	migrate_prep();
-
-	spin_lock_irqsave(zone_lru_lock(zone), flags);
-
-	if (PageLRU(page) &&
-	    __isolate_lru_page(page, ISOLATE_UNEVICTABLE) == 0) {
-		struct lruvec *lruvec = mem_cgroup_page_lruvec(page, zone->zone_pgdat);
-		del_page_from_lru_list(page, lruvec, page_lru(page));
-		spin_unlock_irqrestore(zone_lru_lock(zone), flags);
-	} else {
-		spin_unlock_irqrestore(zone_lru_lock(zone), flags);
-		return -EAGAIN;
-	}
-
-	for (pass = 0; pass < 10 && ret != 0; pass++) {
-		cond_resched();
-
-		if (page_count(page) == 1) {
-			/* page was freed from under us, so we are done */
-			ret = 0;
-			break;
-		}
-		ret = __unmap_and_move(page, newpage, 1, MIGRATE_SYNC);
-	}
-
-	putback_lru_page(page);
-	return ret;
 }
 
 #ifdef CONFIG_NUMA

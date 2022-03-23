@@ -549,7 +549,7 @@ retry:
 	goto return0;
 
 no_context:
-	__do_kernel_fault(mm, addr, esr, regs);
+	__do_kernel_fault(addr, esr, regs);
 return0:
 	trace_pagefault_exit(addr);
 	return 0;

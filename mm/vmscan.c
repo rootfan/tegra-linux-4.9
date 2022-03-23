@@ -270,6 +270,16 @@ unsigned long lruvec_lru_size(struct lruvec *lruvec, enum lru_list lru, int zone
 
 }
 
+/* If zram is being used as swap, and zram is using zsmalloc allocator
+ * then there is a potential bug when reclaim happens from interrupt
+ * context
+ */
+static void adjust_scan_control(struct scan_control *sc)
+{
+	if (in_interrupt() && IS_ENABLED(ZSMALLOC) && total_swap_pages)
+		sc->may_swap = 0;
+}
+
 /*
  * Add a shrinker callback to be called from the vm.
  */
@@ -1595,6 +1605,18 @@ int isolate_lru_page(struct page *page)
 	return ret;
 }
 
+static atomic_t enable_congestion = ATOMIC_INIT(0);
+
+void mm_disable_congestion_wait(void)
+{
+	atomic_inc(&enable_congestion);
+}
+
+void mm_enable_congestion_wait(void)
+{
+	atomic_dec(&enable_congestion);
+}
+
 /*
  * A direct reclaimer may isolate SWAP_CLUSTER_MAX pages from the LRU list and
  * then get resheduled. When there are massive number of tasks doing page
@@ -1611,6 +1633,12 @@ static int too_many_isolated(struct pglist_data *pgdat, int file,
 		return 0;
 
 	if (!sane_reclaim(sc))
+		return 0;
+
+	/* IF CMA migration is in progress, disable congestion
+	 * to avoid dead lock in allocating memory for migration.
+	 */
+	if (atomic_read(&enable_congestion))
 		return 0;
 
 	if (file) {
@@ -3572,6 +3600,28 @@ void wakeup_kswapd(struct zone *zone, int order, enum zone_type classzone_idx)
 	wake_up_interruptible(&pgdat->kswapd_wait);
 }
 
+static unsigned long __shrink_all_memory(struct scan_control *sc)
+{
+	struct reclaim_state reclaim_state;
+	struct zonelist *zonelist = node_zonelist(numa_node_id(), sc->gfp_mask);
+	struct task_struct *p = current;
+	unsigned long nr_reclaimed;
+
+	adjust_scan_control(sc);
+	p->flags |= PF_MEMALLOC;
+	lockdep_set_current_reclaim_state(sc->gfp_mask);
+	reclaim_state.reclaimed_slab = 0;
+	p->reclaim_state = &reclaim_state;
+
+	nr_reclaimed = do_try_to_free_pages(zonelist, sc);
+
+	p->reclaim_state = NULL;
+	lockdep_clear_current_reclaim_state();
+	p->flags &= ~PF_MEMALLOC;
+
+	return nr_reclaimed;
+}
+
 #ifdef CONFIG_HIBERNATION
 /*
  * Try to free `nr_to_reclaim' of memory, system-wide, and return the number of
@@ -3612,6 +3662,48 @@ unsigned long shrink_all_memory(unsigned long nr_to_reclaim)
 	return nr_reclaimed;
 }
 #endif /* CONFIG_HIBERNATION */
+
+int shrink_memory_size;
+int shrink_memory_handler(struct ctl_table *table, int write,
+		void __user *buffer, size_t *lenp,
+		loff_t *ppos)
+{
+	int ret;
+	struct scan_control sc = {
+		.nr_to_reclaim = 0,
+		.gfp_mask = GFP_HIGHUSER_MOVABLE,
+		.reclaim_idx = MAX_NR_ZONES - 1,
+		.priority = DEF_PRIORITY,
+		.may_writepage = 0,
+		.may_unmap = 1,
+		.may_swap = 1,
+		.hibernation_mode = 0,
+	};
+
+	unsigned long nr_reclaimed;
+	unsigned long nr_to_reclaim;
+	unsigned long nr_total_pages;
+
+	if (write) {
+
+		nr_total_pages = global_page_state(NR_SLAB_RECLAIMABLE)
+						  + global_node_page_state(NR_ACTIVE_ANON)
+						  + global_node_page_state(NR_INACTIVE_ANON)
+						  + global_node_page_state(NR_ACTIVE_FILE)
+						  + global_node_page_state(NR_INACTIVE_FILE);
+
+		ret = proc_dointvec(table, write, buffer, lenp, ppos);
+		if(ret == 0) {
+			nr_to_reclaim = min(nr_total_pages/2,
+					(shrink_memory_size * 1024 *1024) >> PAGE_SHIFT);
+			sc.nr_to_reclaim = nr_to_reclaim;
+			nr_reclaimed = __shrink_all_memory(&sc);
+			pr_info("Reclaimed %lu pages\n", nr_reclaimed);
+		}
+	}
+
+	return 0;
+}
 
 /* It's optimal to keep kswapds on the same CPUs as their memory, but
    not required for correctness.  So if the last cpu in a node goes
