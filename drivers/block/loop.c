@@ -1,5 +1,3 @@
-
-/*
 /*
  *  linux/drivers/block/loop.c
  *

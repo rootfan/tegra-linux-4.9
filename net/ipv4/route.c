@@ -2978,7 +2978,6 @@ int __init ip_rt_init(void)
 {
 	void *idents_hash;
 	int rc = 0;
-	void *idents_hash;
 	int cpu;
 
 	/* For modern hosts, this will use 2 MB of memory */
