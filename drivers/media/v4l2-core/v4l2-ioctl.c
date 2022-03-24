@@ -2294,16 +2294,16 @@ static int v4l_log_status(const struct v4l2_ioctl_ops *ops,
 
 	if (vfd->v4l2_dev)
 		pr_info("%s: =================  START STATUS  =================\n",
-			vfd->v4l2_dev->name);
+				vfd->v4l2_dev->name);
 	ret = ops->vidioc_log_status(file, fh);
 	if (vfd->v4l2_dev)
 		pr_info("%s: ==================  END STATUS  ==================\n",
-			vfd->v4l2_dev->name);
+				vfd->v4l2_dev->name);
 	return ret;
 }
 
 static int v4l_dbg_g_register(const struct v4l2_ioctl_ops *ops,
-				struct file *file, void *fh, void *arg)
+		struct file *file, void *fh, void *arg)
 {
 #ifdef CONFIG_VIDEO_ADV_DEBUG
 	struct v4l2_dbg_register *p = arg;
@@ -2322,7 +2322,7 @@ static int v4l_dbg_g_register(const struct v4l2_ioctl_ops *ops,
 		return -EINVAL;
 	}
 	if (ops->vidioc_g_register && p->match.type == V4L2_CHIP_MATCH_BRIDGE &&
-	    (ops->vidioc_g_chip_info || p->match.addr == 0))
+			(ops->vidioc_g_chip_info || p->match.addr == 0))
 		return ops->vidioc_g_register(file, fh, p);
 	return -EINVAL;
 #else
@@ -2331,7 +2331,7 @@ static int v4l_dbg_g_register(const struct v4l2_ioctl_ops *ops,
 }
 
 static int v4l_dbg_s_register(const struct v4l2_ioctl_ops *ops,
-				struct file *file, void *fh, void *arg)
+		struct file *file, void *fh, void *arg)
 {
 #ifdef CONFIG_VIDEO_ADV_DEBUG
 	const struct v4l2_dbg_register *p = arg;
@@ -2350,7 +2350,7 @@ static int v4l_dbg_s_register(const struct v4l2_ioctl_ops *ops,
 		return -EINVAL;
 	}
 	if (ops->vidioc_s_register && p->match.type == V4L2_CHIP_MATCH_BRIDGE &&
-	    (ops->vidioc_g_chip_info || p->match.addr == 0))
+			(ops->vidioc_g_chip_info || p->match.addr == 0))
 		return ops->vidioc_s_register(file, fh, p);
 	return -EINVAL;
 #else
@@ -2359,7 +2359,7 @@ static int v4l_dbg_s_register(const struct v4l2_ioctl_ops *ops,
 }
 
 static int v4l_dbg_g_chip_info(const struct v4l2_ioctl_ops *ops,
-				struct file *file, void *fh, void *arg)
+		struct file *file, void *fh, void *arg)
 {
 #ifdef CONFIG_VIDEO_ADV_DEBUG
 	struct video_device *vfd = video_devdata(file);
@@ -2368,32 +2368,32 @@ static int v4l_dbg_g_chip_info(const struct v4l2_ioctl_ops *ops,
 	int idx = 0;
 
 	switch (p->match.type) {
-	case V4L2_CHIP_MATCH_BRIDGE:
-		if (ops->vidioc_s_register)
-			p->flags |= V4L2_CHIP_FL_WRITABLE;
-		if (ops->vidioc_g_register)
-			p->flags |= V4L2_CHIP_FL_READABLE;
-		strlcpy(p->name, vfd->v4l2_dev->name, sizeof(p->name));
-		if (ops->vidioc_g_chip_info)
-			return ops->vidioc_g_chip_info(file, fh, arg);
-		if (p->match.addr)
-			return -EINVAL;
-		return 0;
-
-	case V4L2_CHIP_MATCH_SUBDEV:
-		if (vfd->v4l2_dev == NULL)
-			break;
-		v4l2_device_for_each_subdev(sd, vfd->v4l2_dev) {
-			if (p->match.addr != idx++)
-				continue;
-			if (sd->ops->core && sd->ops->core->s_register)
+		case V4L2_CHIP_MATCH_BRIDGE:
+			if (ops->vidioc_s_register)
 				p->flags |= V4L2_CHIP_FL_WRITABLE;
-			if (sd->ops->core && sd->ops->core->g_register)
+			if (ops->vidioc_g_register)
 				p->flags |= V4L2_CHIP_FL_READABLE;
-			strlcpy(p->name, sd->name, sizeof(p->name));
+			strlcpy(p->name, vfd->v4l2_dev->name, sizeof(p->name));
+			if (ops->vidioc_g_chip_info)
+				return ops->vidioc_g_chip_info(file, fh, arg);
+			if (p->match.addr)
+				return -EINVAL;
 			return 0;
-		}
-		break;
+
+		case V4L2_CHIP_MATCH_SUBDEV:
+			if (vfd->v4l2_dev == NULL)
+				break;
+			v4l2_device_for_each_subdev(sd, vfd->v4l2_dev) {
+				if (p->match.addr != idx++)
+					continue;
+				if (sd->ops->core && sd->ops->core->s_register)
+					p->flags |= V4L2_CHIP_FL_WRITABLE;
+				if (sd->ops->core && sd->ops->core->g_register)
+					p->flags |= V4L2_CHIP_FL_READABLE;
+				strlcpy(p->name, sd->name, sizeof(p->name));
+				return 0;
+			}
+			break;
 	}
 	return -EINVAL;
 #else
@@ -2402,25 +2402,25 @@ static int v4l_dbg_g_chip_info(const struct v4l2_ioctl_ops *ops,
 }
 
 static int v4l_dqevent(const struct v4l2_ioctl_ops *ops,
-				struct file *file, void *fh, void *arg)
+		struct file *file, void *fh, void *arg)
 {
 	return v4l2_event_dequeue(fh, arg, file->f_flags & O_NONBLOCK);
 }
 
 static int v4l_subscribe_event(const struct v4l2_ioctl_ops *ops,
-				struct file *file, void *fh, void *arg)
+		struct file *file, void *fh, void *arg)
 {
 	return ops->vidioc_subscribe_event(fh, arg);
 }
 
 static int v4l_unsubscribe_event(const struct v4l2_ioctl_ops *ops,
-				struct file *file, void *fh, void *arg)
+		struct file *file, void *fh, void *arg)
 {
 	return ops->vidioc_unsubscribe_event(fh, arg);
 }
 
 static int v4l_g_sliced_vbi_cap(const struct v4l2_ioctl_ops *ops,
-				struct file *file, void *fh, void *arg)
+		struct file *file, void *fh, void *arg)
 {
 	struct v4l2_sliced_vbi_cap *p = arg;
 	int ret = check_fmt(file, p->type);
@@ -2435,7 +2435,7 @@ static int v4l_g_sliced_vbi_cap(const struct v4l2_ioctl_ops *ops,
 }
 
 static int v4l_enum_freq_bands(const struct v4l2_ioctl_ops *ops,
-				struct file *file, void *fh, void *arg)
+		struct file *file, void *fh, void *arg)
 {
 	struct video_device *vfd = video_devdata(file);
 	struct v4l2_frequency_band *p = arg;
@@ -2448,7 +2448,7 @@ static int v4l_enum_freq_bands(const struct v4l2_ioctl_ops *ops,
 		type = p->type;
 	} else {
 		type = (vfd->vfl_type == VFL_TYPE_RADIO) ?
-				V4L2_TUNER_RADIO : V4L2_TUNER_ANALOG_TV;
+			V4L2_TUNER_RADIO : V4L2_TUNER_ANALOG_TV;
 		if (type != p->type)
 			return -EINVAL;
 	}
@@ -2501,7 +2501,7 @@ struct v4l2_ioctl_info {
 	u32 flags;
 	const char * const name;
 	int (*func)(const struct v4l2_ioctl_ops *ops, struct file *file,
-		    void *fh, void *p);
+			void *fh, void *p);
 	void (*debug)(const void *arg, bool write_only);
 };
 
@@ -2538,121 +2538,121 @@ struct v4l2_ioctl_info {
 #define IOCTL_INFO_STD(_ioctl, _vidioc, _debug, _flags)	\
 	IOCTL_INFO_FNC(_ioctl, __v4l_ ## _vidioc ## _fnc, _debug, _flags)
 
-DEFINE_IOCTL_STD_FNC(vidioc_g_fbuf)
-DEFINE_IOCTL_STD_FNC(vidioc_s_fbuf)
-DEFINE_IOCTL_STD_FNC(vidioc_expbuf)
-DEFINE_IOCTL_STD_FNC(vidioc_g_std)
-DEFINE_IOCTL_STD_FNC(vidioc_g_audio)
-DEFINE_IOCTL_STD_FNC(vidioc_s_audio)
-DEFINE_IOCTL_STD_FNC(vidioc_g_input)
-DEFINE_IOCTL_STD_FNC(vidioc_g_edid)
-DEFINE_IOCTL_STD_FNC(vidioc_s_edid)
-DEFINE_IOCTL_STD_FNC(vidioc_g_output)
-DEFINE_IOCTL_STD_FNC(vidioc_g_audout)
-DEFINE_IOCTL_STD_FNC(vidioc_s_audout)
-DEFINE_IOCTL_STD_FNC(vidioc_g_selection)
-DEFINE_IOCTL_STD_FNC(vidioc_s_selection)
-DEFINE_IOCTL_STD_FNC(vidioc_g_jpegcomp)
-DEFINE_IOCTL_STD_FNC(vidioc_s_jpegcomp)
-DEFINE_IOCTL_STD_FNC(vidioc_enumaudio)
-DEFINE_IOCTL_STD_FNC(vidioc_enumaudout)
-DEFINE_IOCTL_STD_FNC(vidioc_enum_framesizes)
-DEFINE_IOCTL_STD_FNC(vidioc_enum_frameintervals)
-DEFINE_IOCTL_STD_FNC(vidioc_g_enc_index)
-DEFINE_IOCTL_STD_FNC(vidioc_encoder_cmd)
-DEFINE_IOCTL_STD_FNC(vidioc_try_encoder_cmd)
-DEFINE_IOCTL_STD_FNC(vidioc_decoder_cmd)
-DEFINE_IOCTL_STD_FNC(vidioc_try_decoder_cmd)
-DEFINE_IOCTL_STD_FNC(vidioc_s_dv_timings)
-DEFINE_IOCTL_STD_FNC(vidioc_g_dv_timings)
-DEFINE_IOCTL_STD_FNC(vidioc_enum_dv_timings)
-DEFINE_IOCTL_STD_FNC(vidioc_query_dv_timings)
+	DEFINE_IOCTL_STD_FNC(vidioc_g_fbuf)
+	DEFINE_IOCTL_STD_FNC(vidioc_s_fbuf)
+	DEFINE_IOCTL_STD_FNC(vidioc_expbuf)
+	DEFINE_IOCTL_STD_FNC(vidioc_g_std)
+	DEFINE_IOCTL_STD_FNC(vidioc_g_audio)
+	DEFINE_IOCTL_STD_FNC(vidioc_s_audio)
+	DEFINE_IOCTL_STD_FNC(vidioc_g_input)
+	DEFINE_IOCTL_STD_FNC(vidioc_g_edid)
+	DEFINE_IOCTL_STD_FNC(vidioc_s_edid)
+	DEFINE_IOCTL_STD_FNC(vidioc_g_output)
+	DEFINE_IOCTL_STD_FNC(vidioc_g_audout)
+	DEFINE_IOCTL_STD_FNC(vidioc_s_audout)
+	DEFINE_IOCTL_STD_FNC(vidioc_g_selection)
+	DEFINE_IOCTL_STD_FNC(vidioc_s_selection)
+	DEFINE_IOCTL_STD_FNC(vidioc_g_jpegcomp)
+	DEFINE_IOCTL_STD_FNC(vidioc_s_jpegcomp)
+	DEFINE_IOCTL_STD_FNC(vidioc_enumaudio)
+	DEFINE_IOCTL_STD_FNC(vidioc_enumaudout)
+	DEFINE_IOCTL_STD_FNC(vidioc_enum_framesizes)
+	DEFINE_IOCTL_STD_FNC(vidioc_enum_frameintervals)
+	DEFINE_IOCTL_STD_FNC(vidioc_g_enc_index)
+	DEFINE_IOCTL_STD_FNC(vidioc_encoder_cmd)
+	DEFINE_IOCTL_STD_FNC(vidioc_try_encoder_cmd)
+	DEFINE_IOCTL_STD_FNC(vidioc_decoder_cmd)
+	DEFINE_IOCTL_STD_FNC(vidioc_try_decoder_cmd)
+	DEFINE_IOCTL_STD_FNC(vidioc_s_dv_timings)
+	DEFINE_IOCTL_STD_FNC(vidioc_g_dv_timings)
+	DEFINE_IOCTL_STD_FNC(vidioc_enum_dv_timings)
+	DEFINE_IOCTL_STD_FNC(vidioc_query_dv_timings)
 DEFINE_IOCTL_STD_FNC(vidioc_dv_timings_cap)
 
-static struct v4l2_ioctl_info v4l2_ioctls[] = {
-	IOCTL_INFO_FNC(VIDIOC_QUERYCAP, v4l_querycap, v4l_print_querycap, 0),
-	IOCTL_INFO_FNC(VIDIOC_ENUM_FMT, v4l_enum_fmt, v4l_print_fmtdesc, INFO_FL_CLEAR(v4l2_fmtdesc, type)),
-	IOCTL_INFO_FNC(VIDIOC_G_FMT, v4l_g_fmt, v4l_print_format, 0),
-	IOCTL_INFO_FNC(VIDIOC_S_FMT, v4l_s_fmt, v4l_print_format, INFO_FL_PRIO),
-	IOCTL_INFO_FNC(VIDIOC_REQBUFS, v4l_reqbufs, v4l_print_requestbuffers, INFO_FL_PRIO | INFO_FL_QUEUE),
-	IOCTL_INFO_FNC(VIDIOC_QUERYBUF, v4l_querybuf, v4l_print_buffer, INFO_FL_QUEUE | INFO_FL_CLEAR(v4l2_buffer, length)),
-	IOCTL_INFO_STD(VIDIOC_G_FBUF, vidioc_g_fbuf, v4l_print_framebuffer, 0),
-	IOCTL_INFO_STD(VIDIOC_S_FBUF, vidioc_s_fbuf, v4l_print_framebuffer, INFO_FL_PRIO),
-	IOCTL_INFO_FNC(VIDIOC_OVERLAY, v4l_overlay, v4l_print_u32, INFO_FL_PRIO),
-	IOCTL_INFO_FNC(VIDIOC_QBUF, v4l_qbuf, v4l_print_buffer, INFO_FL_QUEUE),
-	IOCTL_INFO_STD(VIDIOC_EXPBUF, vidioc_expbuf, v4l_print_exportbuffer, INFO_FL_QUEUE | INFO_FL_CLEAR(v4l2_exportbuffer, flags)),
-	IOCTL_INFO_FNC(VIDIOC_DQBUF, v4l_dqbuf, v4l_print_buffer, INFO_FL_QUEUE),
-	IOCTL_INFO_FNC(VIDIOC_STREAMON, v4l_streamon, v4l_print_buftype, INFO_FL_PRIO | INFO_FL_QUEUE),
-	IOCTL_INFO_FNC(VIDIOC_STREAMOFF, v4l_streamoff, v4l_print_buftype, INFO_FL_PRIO | INFO_FL_QUEUE),
-	IOCTL_INFO_FNC(VIDIOC_G_PARM, v4l_g_parm, v4l_print_streamparm, INFO_FL_CLEAR(v4l2_streamparm, type)),
-	IOCTL_INFO_FNC(VIDIOC_S_PARM, v4l_s_parm, v4l_print_streamparm, INFO_FL_PRIO),
-	IOCTL_INFO_STD(VIDIOC_G_STD, vidioc_g_std, v4l_print_std, 0),
-	IOCTL_INFO_FNC(VIDIOC_S_STD, v4l_s_std, v4l_print_std, INFO_FL_PRIO),
-	IOCTL_INFO_FNC(VIDIOC_ENUMSTD, v4l_enumstd, v4l_print_standard, INFO_FL_CLEAR(v4l2_standard, index)),
-	IOCTL_INFO_FNC(VIDIOC_ENUMINPUT, v4l_enuminput, v4l_print_enuminput, INFO_FL_CLEAR(v4l2_input, index)),
-	IOCTL_INFO_FNC(VIDIOC_G_CTRL, v4l_g_ctrl, v4l_print_control, INFO_FL_CTRL | INFO_FL_CLEAR(v4l2_control, id)),
-	IOCTL_INFO_FNC(VIDIOC_S_CTRL, v4l_s_ctrl, v4l_print_control, INFO_FL_PRIO | INFO_FL_CTRL),
-	IOCTL_INFO_FNC(VIDIOC_G_TUNER, v4l_g_tuner, v4l_print_tuner, INFO_FL_CLEAR(v4l2_tuner, index)),
-	IOCTL_INFO_FNC(VIDIOC_S_TUNER, v4l_s_tuner, v4l_print_tuner, INFO_FL_PRIO),
-	IOCTL_INFO_STD(VIDIOC_G_AUDIO, vidioc_g_audio, v4l_print_audio, 0),
-	IOCTL_INFO_STD(VIDIOC_S_AUDIO, vidioc_s_audio, v4l_print_audio, INFO_FL_PRIO),
-	IOCTL_INFO_FNC(VIDIOC_QUERYCTRL, v4l_queryctrl, v4l_print_queryctrl, INFO_FL_CTRL | INFO_FL_CLEAR(v4l2_queryctrl, id)),
-	IOCTL_INFO_FNC(VIDIOC_QUERYMENU, v4l_querymenu, v4l_print_querymenu, INFO_FL_CTRL | INFO_FL_CLEAR(v4l2_querymenu, index)),
-	IOCTL_INFO_STD(VIDIOC_G_INPUT, vidioc_g_input, v4l_print_u32, 0),
-	IOCTL_INFO_FNC(VIDIOC_S_INPUT, v4l_s_input, v4l_print_u32, INFO_FL_PRIO),
-	IOCTL_INFO_STD(VIDIOC_G_EDID, vidioc_g_edid, v4l_print_edid, 0),
-	IOCTL_INFO_STD(VIDIOC_S_EDID, vidioc_s_edid, v4l_print_edid, INFO_FL_PRIO),
-	IOCTL_INFO_STD(VIDIOC_G_OUTPUT, vidioc_g_output, v4l_print_u32, 0),
-	IOCTL_INFO_FNC(VIDIOC_S_OUTPUT, v4l_s_output, v4l_print_u32, INFO_FL_PRIO),
-	IOCTL_INFO_FNC(VIDIOC_ENUMOUTPUT, v4l_enumoutput, v4l_print_enumoutput, INFO_FL_CLEAR(v4l2_output, index)),
-	IOCTL_INFO_STD(VIDIOC_G_AUDOUT, vidioc_g_audout, v4l_print_audioout, 0),
-	IOCTL_INFO_STD(VIDIOC_S_AUDOUT, vidioc_s_audout, v4l_print_audioout, INFO_FL_PRIO),
-	IOCTL_INFO_FNC(VIDIOC_G_MODULATOR, v4l_g_modulator, v4l_print_modulator, INFO_FL_CLEAR(v4l2_modulator, index)),
-	IOCTL_INFO_FNC(VIDIOC_S_MODULATOR, v4l_s_modulator, v4l_print_modulator, INFO_FL_PRIO),
-	IOCTL_INFO_FNC(VIDIOC_G_FREQUENCY, v4l_g_frequency, v4l_print_frequency, INFO_FL_CLEAR(v4l2_frequency, tuner)),
-	IOCTL_INFO_FNC(VIDIOC_S_FREQUENCY, v4l_s_frequency, v4l_print_frequency, INFO_FL_PRIO),
-	IOCTL_INFO_FNC(VIDIOC_CROPCAP, v4l_cropcap, v4l_print_cropcap, INFO_FL_CLEAR(v4l2_cropcap, type)),
-	IOCTL_INFO_FNC(VIDIOC_G_CROP, v4l_g_crop, v4l_print_crop, INFO_FL_CLEAR(v4l2_crop, type)),
-	IOCTL_INFO_FNC(VIDIOC_S_CROP, v4l_s_crop, v4l_print_crop, INFO_FL_PRIO),
-	IOCTL_INFO_STD(VIDIOC_G_SELECTION, vidioc_g_selection, v4l_print_selection, INFO_FL_CLEAR(v4l2_selection, r)),
-	IOCTL_INFO_STD(VIDIOC_S_SELECTION, vidioc_s_selection, v4l_print_selection, INFO_FL_PRIO | INFO_FL_CLEAR(v4l2_selection, r)),
-	IOCTL_INFO_STD(VIDIOC_G_JPEGCOMP, vidioc_g_jpegcomp, v4l_print_jpegcompression, 0),
-	IOCTL_INFO_STD(VIDIOC_S_JPEGCOMP, vidioc_s_jpegcomp, v4l_print_jpegcompression, INFO_FL_PRIO),
-	IOCTL_INFO_FNC(VIDIOC_QUERYSTD, v4l_querystd, v4l_print_std, 0),
-	IOCTL_INFO_FNC(VIDIOC_TRY_FMT, v4l_try_fmt, v4l_print_format, 0),
-	IOCTL_INFO_STD(VIDIOC_ENUMAUDIO, vidioc_enumaudio, v4l_print_audio, INFO_FL_CLEAR(v4l2_audio, index)),
-	IOCTL_INFO_STD(VIDIOC_ENUMAUDOUT, vidioc_enumaudout, v4l_print_audioout, INFO_FL_CLEAR(v4l2_audioout, index)),
-	IOCTL_INFO_FNC(VIDIOC_G_PRIORITY, v4l_g_priority, v4l_print_u32, 0),
-	IOCTL_INFO_FNC(VIDIOC_S_PRIORITY, v4l_s_priority, v4l_print_u32, INFO_FL_PRIO),
-	IOCTL_INFO_FNC(VIDIOC_G_SLICED_VBI_CAP, v4l_g_sliced_vbi_cap, v4l_print_sliced_vbi_cap, INFO_FL_CLEAR(v4l2_sliced_vbi_cap, type)),
-	IOCTL_INFO_FNC(VIDIOC_LOG_STATUS, v4l_log_status, v4l_print_newline, 0),
-	IOCTL_INFO_FNC(VIDIOC_G_EXT_CTRLS, v4l_g_ext_ctrls, v4l_print_ext_controls, INFO_FL_CTRL),
-	IOCTL_INFO_FNC(VIDIOC_S_EXT_CTRLS, v4l_s_ext_ctrls, v4l_print_ext_controls, INFO_FL_PRIO | INFO_FL_CTRL),
-	IOCTL_INFO_FNC(VIDIOC_TRY_EXT_CTRLS, v4l_try_ext_ctrls, v4l_print_ext_controls, INFO_FL_CTRL),
-	IOCTL_INFO_STD(VIDIOC_ENUM_FRAMESIZES, vidioc_enum_framesizes, v4l_print_frmsizeenum, INFO_FL_CLEAR(v4l2_frmsizeenum, pixel_format)),
-	IOCTL_INFO_STD(VIDIOC_ENUM_FRAMEINTERVALS, vidioc_enum_frameintervals, v4l_print_frmivalenum, INFO_FL_CLEAR(v4l2_frmivalenum, height)),
-	IOCTL_INFO_STD(VIDIOC_G_ENC_INDEX, vidioc_g_enc_index, v4l_print_enc_idx, 0),
-	IOCTL_INFO_STD(VIDIOC_ENCODER_CMD, vidioc_encoder_cmd, v4l_print_encoder_cmd, INFO_FL_PRIO | INFO_FL_CLEAR(v4l2_encoder_cmd, flags)),
-	IOCTL_INFO_STD(VIDIOC_TRY_ENCODER_CMD, vidioc_try_encoder_cmd, v4l_print_encoder_cmd, INFO_FL_CLEAR(v4l2_encoder_cmd, flags)),
-	IOCTL_INFO_STD(VIDIOC_DECODER_CMD, vidioc_decoder_cmd, v4l_print_decoder_cmd, INFO_FL_PRIO),
-	IOCTL_INFO_STD(VIDIOC_TRY_DECODER_CMD, vidioc_try_decoder_cmd, v4l_print_decoder_cmd, 0),
-	IOCTL_INFO_FNC(VIDIOC_DBG_S_REGISTER, v4l_dbg_s_register, v4l_print_dbg_register, 0),
-	IOCTL_INFO_FNC(VIDIOC_DBG_G_REGISTER, v4l_dbg_g_register, v4l_print_dbg_register, 0),
-	IOCTL_INFO_FNC(VIDIOC_S_HW_FREQ_SEEK, v4l_s_hw_freq_seek, v4l_print_hw_freq_seek, INFO_FL_PRIO),
-	IOCTL_INFO_STD(VIDIOC_S_DV_TIMINGS, vidioc_s_dv_timings, v4l_print_dv_timings, INFO_FL_PRIO | INFO_FL_CLEAR(v4l2_dv_timings, bt.flags)),
-	IOCTL_INFO_STD(VIDIOC_G_DV_TIMINGS, vidioc_g_dv_timings, v4l_print_dv_timings, 0),
-	IOCTL_INFO_FNC(VIDIOC_DQEVENT, v4l_dqevent, v4l_print_event, 0),
-	IOCTL_INFO_FNC(VIDIOC_SUBSCRIBE_EVENT, v4l_subscribe_event, v4l_print_event_subscription, 0),
-	IOCTL_INFO_FNC(VIDIOC_UNSUBSCRIBE_EVENT, v4l_unsubscribe_event, v4l_print_event_subscription, 0),
-	IOCTL_INFO_FNC(VIDIOC_CREATE_BUFS, v4l_create_bufs, v4l_print_create_buffers, INFO_FL_PRIO | INFO_FL_QUEUE),
-	IOCTL_INFO_FNC(VIDIOC_PREPARE_BUF, v4l_prepare_buf, v4l_print_buffer, INFO_FL_QUEUE),
-	IOCTL_INFO_STD(VIDIOC_ENUM_DV_TIMINGS, vidioc_enum_dv_timings, v4l_print_enum_dv_timings, INFO_FL_CLEAR(v4l2_enum_dv_timings, pad)),
-	IOCTL_INFO_STD(VIDIOC_QUERY_DV_TIMINGS, vidioc_query_dv_timings, v4l_print_dv_timings, 0),
-	IOCTL_INFO_STD(VIDIOC_DV_TIMINGS_CAP, vidioc_dv_timings_cap, v4l_print_dv_timings_cap, INFO_FL_CLEAR(v4l2_dv_timings_cap, type)),
-	IOCTL_INFO_FNC(VIDIOC_ENUM_FREQ_BANDS, v4l_enum_freq_bands, v4l_print_freq_band, 0),
-	IOCTL_INFO_FNC(VIDIOC_DBG_G_CHIP_INFO, v4l_dbg_g_chip_info, v4l_print_dbg_chip_info, INFO_FL_CLEAR(v4l2_dbg_chip_info, match)),
-	IOCTL_INFO_FNC(VIDIOC_QUERY_EXT_CTRL, v4l_query_ext_ctrl, v4l_print_query_ext_ctrl, INFO_FL_CTRL | INFO_FL_CLEAR(v4l2_query_ext_ctrl, id)),
-};
+	static struct v4l2_ioctl_info v4l2_ioctls[] = {
+		IOCTL_INFO_FNC(VIDIOC_QUERYCAP, v4l_querycap, v4l_print_querycap, 0),
+		IOCTL_INFO_FNC(VIDIOC_ENUM_FMT, v4l_enum_fmt, v4l_print_fmtdesc, INFO_FL_CLEAR(v4l2_fmtdesc, type)),
+		IOCTL_INFO_FNC(VIDIOC_G_FMT, v4l_g_fmt, v4l_print_format, 0),
+		IOCTL_INFO_FNC(VIDIOC_S_FMT, v4l_s_fmt, v4l_print_format, INFO_FL_PRIO),
+		IOCTL_INFO_FNC(VIDIOC_REQBUFS, v4l_reqbufs, v4l_print_requestbuffers, INFO_FL_PRIO | INFO_FL_QUEUE),
+		IOCTL_INFO_FNC(VIDIOC_QUERYBUF, v4l_querybuf, v4l_print_buffer, INFO_FL_QUEUE | INFO_FL_CLEAR(v4l2_buffer, length)),
+		IOCTL_INFO_STD(VIDIOC_G_FBUF, vidioc_g_fbuf, v4l_print_framebuffer, 0),
+		IOCTL_INFO_STD(VIDIOC_S_FBUF, vidioc_s_fbuf, v4l_print_framebuffer, INFO_FL_PRIO),
+		IOCTL_INFO_FNC(VIDIOC_OVERLAY, v4l_overlay, v4l_print_u32, INFO_FL_PRIO),
+		IOCTL_INFO_FNC(VIDIOC_QBUF, v4l_qbuf, v4l_print_buffer, INFO_FL_QUEUE),
+		IOCTL_INFO_STD(VIDIOC_EXPBUF, vidioc_expbuf, v4l_print_exportbuffer, INFO_FL_QUEUE | INFO_FL_CLEAR(v4l2_exportbuffer, flags)),
+		IOCTL_INFO_FNC(VIDIOC_DQBUF, v4l_dqbuf, v4l_print_buffer, INFO_FL_QUEUE),
+		IOCTL_INFO_FNC(VIDIOC_STREAMON, v4l_streamon, v4l_print_buftype, INFO_FL_PRIO | INFO_FL_QUEUE),
+		IOCTL_INFO_FNC(VIDIOC_STREAMOFF, v4l_streamoff, v4l_print_buftype, INFO_FL_PRIO | INFO_FL_QUEUE),
+		IOCTL_INFO_FNC(VIDIOC_G_PARM, v4l_g_parm, v4l_print_streamparm, INFO_FL_CLEAR(v4l2_streamparm, type)),
+		IOCTL_INFO_FNC(VIDIOC_S_PARM, v4l_s_parm, v4l_print_streamparm, INFO_FL_PRIO),
+		IOCTL_INFO_STD(VIDIOC_G_STD, vidioc_g_std, v4l_print_std, 0),
+		IOCTL_INFO_FNC(VIDIOC_S_STD, v4l_s_std, v4l_print_std, INFO_FL_PRIO),
+		IOCTL_INFO_FNC(VIDIOC_ENUMSTD, v4l_enumstd, v4l_print_standard, INFO_FL_CLEAR(v4l2_standard, index)),
+		IOCTL_INFO_FNC(VIDIOC_ENUMINPUT, v4l_enuminput, v4l_print_enuminput, INFO_FL_CLEAR(v4l2_input, index)),
+		IOCTL_INFO_FNC(VIDIOC_G_CTRL, v4l_g_ctrl, v4l_print_control, INFO_FL_CTRL | INFO_FL_CLEAR(v4l2_control, id)),
+		IOCTL_INFO_FNC(VIDIOC_S_CTRL, v4l_s_ctrl, v4l_print_control, INFO_FL_PRIO | INFO_FL_CTRL),
+		IOCTL_INFO_FNC(VIDIOC_G_TUNER, v4l_g_tuner, v4l_print_tuner, INFO_FL_CLEAR(v4l2_tuner, index)),
+		IOCTL_INFO_FNC(VIDIOC_S_TUNER, v4l_s_tuner, v4l_print_tuner, INFO_FL_PRIO),
+		IOCTL_INFO_STD(VIDIOC_G_AUDIO, vidioc_g_audio, v4l_print_audio, 0),
+		IOCTL_INFO_STD(VIDIOC_S_AUDIO, vidioc_s_audio, v4l_print_audio, INFO_FL_PRIO),
+		IOCTL_INFO_FNC(VIDIOC_QUERYCTRL, v4l_queryctrl, v4l_print_queryctrl, INFO_FL_CTRL | INFO_FL_CLEAR(v4l2_queryctrl, id)),
+		IOCTL_INFO_FNC(VIDIOC_QUERYMENU, v4l_querymenu, v4l_print_querymenu, INFO_FL_CTRL | INFO_FL_CLEAR(v4l2_querymenu, index)),
+		IOCTL_INFO_STD(VIDIOC_G_INPUT, vidioc_g_input, v4l_print_u32, 0),
+		IOCTL_INFO_FNC(VIDIOC_S_INPUT, v4l_s_input, v4l_print_u32, INFO_FL_PRIO),
+		IOCTL_INFO_STD(VIDIOC_G_EDID, vidioc_g_edid, v4l_print_edid, 0),
+		IOCTL_INFO_STD(VIDIOC_S_EDID, vidioc_s_edid, v4l_print_edid, INFO_FL_PRIO),
+		IOCTL_INFO_STD(VIDIOC_G_OUTPUT, vidioc_g_output, v4l_print_u32, 0),
+		IOCTL_INFO_FNC(VIDIOC_S_OUTPUT, v4l_s_output, v4l_print_u32, INFO_FL_PRIO),
+		IOCTL_INFO_FNC(VIDIOC_ENUMOUTPUT, v4l_enumoutput, v4l_print_enumoutput, INFO_FL_CLEAR(v4l2_output, index)),
+		IOCTL_INFO_STD(VIDIOC_G_AUDOUT, vidioc_g_audout, v4l_print_audioout, 0),
+		IOCTL_INFO_STD(VIDIOC_S_AUDOUT, vidioc_s_audout, v4l_print_audioout, INFO_FL_PRIO),
+		IOCTL_INFO_FNC(VIDIOC_G_MODULATOR, v4l_g_modulator, v4l_print_modulator, INFO_FL_CLEAR(v4l2_modulator, index)),
+		IOCTL_INFO_FNC(VIDIOC_S_MODULATOR, v4l_s_modulator, v4l_print_modulator, INFO_FL_PRIO),
+		IOCTL_INFO_FNC(VIDIOC_G_FREQUENCY, v4l_g_frequency, v4l_print_frequency, INFO_FL_CLEAR(v4l2_frequency, tuner)),
+		IOCTL_INFO_FNC(VIDIOC_S_FREQUENCY, v4l_s_frequency, v4l_print_frequency, INFO_FL_PRIO),
+		IOCTL_INFO_FNC(VIDIOC_CROPCAP, v4l_cropcap, v4l_print_cropcap, INFO_FL_CLEAR(v4l2_cropcap, type)),
+		IOCTL_INFO_FNC(VIDIOC_G_CROP, v4l_g_crop, v4l_print_crop, INFO_FL_CLEAR(v4l2_crop, type)),
+		IOCTL_INFO_FNC(VIDIOC_S_CROP, v4l_s_crop, v4l_print_crop, INFO_FL_PRIO),
+		IOCTL_INFO_STD(VIDIOC_G_SELECTION, vidioc_g_selection, v4l_print_selection, INFO_FL_CLEAR(v4l2_selection, r)),
+		IOCTL_INFO_STD(VIDIOC_S_SELECTION, vidioc_s_selection, v4l_print_selection, INFO_FL_PRIO | INFO_FL_CLEAR(v4l2_selection, r)),
+		IOCTL_INFO_STD(VIDIOC_G_JPEGCOMP, vidioc_g_jpegcomp, v4l_print_jpegcompression, 0),
+		IOCTL_INFO_STD(VIDIOC_S_JPEGCOMP, vidioc_s_jpegcomp, v4l_print_jpegcompression, INFO_FL_PRIO),
+		IOCTL_INFO_FNC(VIDIOC_QUERYSTD, v4l_querystd, v4l_print_std, 0),
+		IOCTL_INFO_FNC(VIDIOC_TRY_FMT, v4l_try_fmt, v4l_print_format, 0),
+		IOCTL_INFO_STD(VIDIOC_ENUMAUDIO, vidioc_enumaudio, v4l_print_audio, INFO_FL_CLEAR(v4l2_audio, index)),
+		IOCTL_INFO_STD(VIDIOC_ENUMAUDOUT, vidioc_enumaudout, v4l_print_audioout, INFO_FL_CLEAR(v4l2_audioout, index)),
+		IOCTL_INFO_FNC(VIDIOC_G_PRIORITY, v4l_g_priority, v4l_print_u32, 0),
+		IOCTL_INFO_FNC(VIDIOC_S_PRIORITY, v4l_s_priority, v4l_print_u32, INFO_FL_PRIO),
+		IOCTL_INFO_FNC(VIDIOC_G_SLICED_VBI_CAP, v4l_g_sliced_vbi_cap, v4l_print_sliced_vbi_cap, INFO_FL_CLEAR(v4l2_sliced_vbi_cap, type)),
+		IOCTL_INFO_FNC(VIDIOC_LOG_STATUS, v4l_log_status, v4l_print_newline, 0),
+		IOCTL_INFO_FNC(VIDIOC_G_EXT_CTRLS, v4l_g_ext_ctrls, v4l_print_ext_controls, INFO_FL_CTRL),
+		IOCTL_INFO_FNC(VIDIOC_S_EXT_CTRLS, v4l_s_ext_ctrls, v4l_print_ext_controls, INFO_FL_PRIO | INFO_FL_CTRL),
+		IOCTL_INFO_FNC(VIDIOC_TRY_EXT_CTRLS, v4l_try_ext_ctrls, v4l_print_ext_controls, INFO_FL_CTRL),
+		IOCTL_INFO_STD(VIDIOC_ENUM_FRAMESIZES, vidioc_enum_framesizes, v4l_print_frmsizeenum, INFO_FL_CLEAR(v4l2_frmsizeenum, pixel_format)),
+		IOCTL_INFO_STD(VIDIOC_ENUM_FRAMEINTERVALS, vidioc_enum_frameintervals, v4l_print_frmivalenum, INFO_FL_CLEAR(v4l2_frmivalenum, height)),
+		IOCTL_INFO_STD(VIDIOC_G_ENC_INDEX, vidioc_g_enc_index, v4l_print_enc_idx, 0),
+		IOCTL_INFO_STD(VIDIOC_ENCODER_CMD, vidioc_encoder_cmd, v4l_print_encoder_cmd, INFO_FL_PRIO | INFO_FL_CLEAR(v4l2_encoder_cmd, flags)),
+		IOCTL_INFO_STD(VIDIOC_TRY_ENCODER_CMD, vidioc_try_encoder_cmd, v4l_print_encoder_cmd, INFO_FL_CLEAR(v4l2_encoder_cmd, flags)),
+		IOCTL_INFO_STD(VIDIOC_DECODER_CMD, vidioc_decoder_cmd, v4l_print_decoder_cmd, INFO_FL_PRIO),
+		IOCTL_INFO_STD(VIDIOC_TRY_DECODER_CMD, vidioc_try_decoder_cmd, v4l_print_decoder_cmd, 0),
+		IOCTL_INFO_FNC(VIDIOC_DBG_S_REGISTER, v4l_dbg_s_register, v4l_print_dbg_register, 0),
+		IOCTL_INFO_FNC(VIDIOC_DBG_G_REGISTER, v4l_dbg_g_register, v4l_print_dbg_register, 0),
+		IOCTL_INFO_FNC(VIDIOC_S_HW_FREQ_SEEK, v4l_s_hw_freq_seek, v4l_print_hw_freq_seek, INFO_FL_PRIO),
+		IOCTL_INFO_STD(VIDIOC_S_DV_TIMINGS, vidioc_s_dv_timings, v4l_print_dv_timings, INFO_FL_PRIO | INFO_FL_CLEAR(v4l2_dv_timings, bt.flags)),
+		IOCTL_INFO_STD(VIDIOC_G_DV_TIMINGS, vidioc_g_dv_timings, v4l_print_dv_timings, 0),
+		IOCTL_INFO_FNC(VIDIOC_DQEVENT, v4l_dqevent, v4l_print_event, 0),
+		IOCTL_INFO_FNC(VIDIOC_SUBSCRIBE_EVENT, v4l_subscribe_event, v4l_print_event_subscription, 0),
+		IOCTL_INFO_FNC(VIDIOC_UNSUBSCRIBE_EVENT, v4l_unsubscribe_event, v4l_print_event_subscription, 0),
+		IOCTL_INFO_FNC(VIDIOC_CREATE_BUFS, v4l_create_bufs, v4l_print_create_buffers, INFO_FL_PRIO | INFO_FL_QUEUE),
+		IOCTL_INFO_FNC(VIDIOC_PREPARE_BUF, v4l_prepare_buf, v4l_print_buffer, INFO_FL_QUEUE),
+		IOCTL_INFO_STD(VIDIOC_ENUM_DV_TIMINGS, vidioc_enum_dv_timings, v4l_print_enum_dv_timings, INFO_FL_CLEAR(v4l2_enum_dv_timings, pad)),
+		IOCTL_INFO_STD(VIDIOC_QUERY_DV_TIMINGS, vidioc_query_dv_timings, v4l_print_dv_timings, 0),
+		IOCTL_INFO_STD(VIDIOC_DV_TIMINGS_CAP, vidioc_dv_timings_cap, v4l_print_dv_timings_cap, INFO_FL_CLEAR(v4l2_dv_timings_cap, type)),
+		IOCTL_INFO_FNC(VIDIOC_ENUM_FREQ_BANDS, v4l_enum_freq_bands, v4l_print_freq_band, 0),
+		IOCTL_INFO_FNC(VIDIOC_DBG_G_CHIP_INFO, v4l_dbg_g_chip_info, v4l_print_dbg_chip_info, INFO_FL_CLEAR(v4l2_dbg_chip_info, match)),
+		IOCTL_INFO_FNC(VIDIOC_QUERY_EXT_CTRL, v4l_query_ext_ctrl, v4l_print_query_ext_ctrl, INFO_FL_CTRL | INFO_FL_CLEAR(v4l2_query_ext_ctrl, id)),
+	};
 #define V4L2_IOCTLS ARRAY_SIZE(v4l2_ioctls)
 
 bool v4l2_is_known_ioctl(unsigned int cmd)
@@ -2687,29 +2687,29 @@ void v4l_printk_ioctl(const char *prefix, unsigned int cmd)
 		printk(KERN_DEBUG "%s: ", prefix);
 
 	switch (_IOC_TYPE(cmd)) {
-	case 'd':
-		type = "v4l2_int";
-		break;
-	case 'V':
-		if (_IOC_NR(cmd) >= V4L2_IOCTLS) {
-			type = "v4l2";
+		case 'd':
+			type = "v4l2_int";
 			break;
-		}
-		pr_cont("%s", v4l2_ioctls[_IOC_NR(cmd)].name);
-		return;
-	default:
-		type = "unknown";
-		break;
+		case 'V':
+			if (_IOC_NR(cmd) >= V4L2_IOCTLS) {
+				type = "v4l2";
+				break;
+			}
+			pr_cont("%s", v4l2_ioctls[_IOC_NR(cmd)].name);
+			return;
+		default:
+			type = "unknown";
+			break;
 	}
 
 	switch (_IOC_DIR(cmd)) {
-	case _IOC_READ:              dir = "r-"; break;
-	case _IOC_WRITE:             dir = "-w"; break;
-	case _IOC_READ | _IOC_WRITE: dir = "rw"; break;
-	default:                     dir = "--"; break;
+		case _IOC_READ:              dir = "r-"; break;
+		case _IOC_WRITE:             dir = "-w"; break;
+		case _IOC_READ | _IOC_WRITE: dir = "rw"; break;
+		default:                     dir = "--"; break;
 	}
 	pr_cont("%s ioctl '%c', dir=%s, #%d (0x%08x)",
-		type, _IOC_TYPE(cmd), dir, _IOC_NR(cmd), cmd);
+			type, _IOC_TYPE(cmd), dir, _IOC_NR(cmd), cmd);
 }
 EXPORT_SYMBOL(v4l_printk_ioctl);
 
@@ -2739,7 +2739,7 @@ static long __video_do_ioctl(struct file *file,
 		info = &v4l2_ioctls[_IOC_NR(cmd)];
 
 		if (!test_bit(_IOC_NR(cmd), vfd->valid_ioctls) &&
-		    !((info->flags & INFO_FL_CTRL) && vfh && vfh->ctrl_handler))
+				!((info->flags & INFO_FL_CTRL) && vfh && vfh->ctrl_handler))
 			goto done;
 
 		if (vfh && (info->flags & INFO_FL_PRIO)) {
@@ -2761,14 +2761,14 @@ static long __video_do_ioctl(struct file *file,
 		ret = -ENOTTY;
 	} else {
 		ret = ops->vidioc_default(file, fh,
-			vfh ? v4l2_prio_check(vfd->prio, vfh->prio) >= 0 : 0,
-			cmd, arg);
+				vfh ? v4l2_prio_check(vfd->prio, vfh->prio) >= 0 : 0,
+				cmd, arg);
 	}
 
 done:
 	if (dev_debug & (V4L2_DEV_DEBUG_IOCTL | V4L2_DEV_DEBUG_IOCTL_ARG)) {
 		if (!(dev_debug & V4L2_DEV_DEBUG_STREAMING) &&
-		    (cmd == VIDIOC_QBUF || cmd == VIDIOC_DQBUF))
+				(cmd == VIDIOC_QBUF || cmd == VIDIOC_DQBUF))
 			return ret;
 
 		v4l_printk_ioctl(video_device_node_name(vfd), cmd);
@@ -2788,76 +2788,76 @@ done:
 }
 
 static int check_array_args(unsigned int cmd, void *parg, size_t *array_size,
-			    void __user **user_ptr, void ***kernel_ptr)
+		void __user **user_ptr, void ***kernel_ptr)
 {
 	int ret = 0;
 
 	switch (cmd) {
-	case VIDIOC_PREPARE_BUF:
-	case VIDIOC_QUERYBUF:
-	case VIDIOC_QBUF:
-	case VIDIOC_DQBUF: {
-		struct v4l2_buffer *buf = parg;
+		case VIDIOC_PREPARE_BUF:
+		case VIDIOC_QUERYBUF:
+		case VIDIOC_QBUF:
+		case VIDIOC_DQBUF: {
+					   struct v4l2_buffer *buf = parg;
 
-		if (V4L2_TYPE_IS_MULTIPLANAR(buf->type) && buf->length > 0) {
-			if (buf->length > VIDEO_MAX_PLANES) {
-				ret = -EINVAL;
-				break;
-			}
-			*user_ptr = (void __user *)buf->m.planes;
-			*kernel_ptr = (void **)&buf->m.planes;
-			*array_size = sizeof(struct v4l2_plane) * buf->length;
-			ret = 1;
-		}
-		break;
-	}
+					   if (V4L2_TYPE_IS_MULTIPLANAR(buf->type) && buf->length > 0) {
+						   if (buf->length > VIDEO_MAX_PLANES) {
+							   ret = -EINVAL;
+							   break;
+						   }
+						   *user_ptr = (void __user *)buf->m.planes;
+						   *kernel_ptr = (void **)&buf->m.planes;
+						   *array_size = sizeof(struct v4l2_plane) * buf->length;
+						   ret = 1;
+					   }
+					   break;
+				   }
 
-	case VIDIOC_G_EDID:
-	case VIDIOC_S_EDID: {
-		struct v4l2_edid *edid = parg;
+		case VIDIOC_G_EDID:
+		case VIDIOC_S_EDID: {
+					    struct v4l2_edid *edid = parg;
 
-		if (edid->blocks) {
-			if (edid->blocks > 256) {
-				ret = -EINVAL;
-				break;
-			}
-			*user_ptr = (void __user *)edid->edid;
-			*kernel_ptr = (void **)&edid->edid;
-			*array_size = edid->blocks * 128;
-			ret = 1;
-		}
-		break;
-	}
+					    if (edid->blocks) {
+						    if (edid->blocks > 256) {
+							    ret = -EINVAL;
+							    break;
+						    }
+						    *user_ptr = (void __user *)edid->edid;
+						    *kernel_ptr = (void **)&edid->edid;
+						    *array_size = edid->blocks * 128;
+						    ret = 1;
+					    }
+					    break;
+				    }
 
-	case VIDIOC_S_EXT_CTRLS:
-	case VIDIOC_G_EXT_CTRLS:
-	case VIDIOC_TRY_EXT_CTRLS: {
-		struct v4l2_ext_controls *ctrls = parg;
+		case VIDIOC_S_EXT_CTRLS:
+		case VIDIOC_G_EXT_CTRLS:
+		case VIDIOC_TRY_EXT_CTRLS: {
+						   struct v4l2_ext_controls *ctrls = parg;
 
-		if (ctrls->count != 0) {
-			if (ctrls->count > V4L2_CID_MAX_CTRLS) {
-				ret = -EINVAL;
-				break;
-			}
-			*user_ptr = (void __user *)ctrls->controls;
-			*kernel_ptr = (void **)&ctrls->controls;
-			*array_size = sizeof(struct v4l2_ext_control)
-				    * ctrls->count;
-			ret = 1;
-		}
-		break;
-	}
+						   if (ctrls->count != 0) {
+							   if (ctrls->count > V4L2_CID_MAX_CTRLS) {
+								   ret = -EINVAL;
+								   break;
+							   }
+							   *user_ptr = (void __user *)ctrls->controls;
+							   *kernel_ptr = (void **)&ctrls->controls;
+							   *array_size = sizeof(struct v4l2_ext_control)
+								   * ctrls->count;
+							   ret = 1;
+						   }
+						   break;
+					   }
 	}
 
 	return ret;
 }
 
-long
+	long
 video_usercopy(struct file *file, unsigned int cmd, unsigned long arg,
-	       v4l2_kioctl func)
+		v4l2_kioctl func)
 {
 	char	sbuf[128];
-	void    *mbuf = NULL;
+	void    *mbuf = NULL, *array_buf = NULL;
 	void	*parg = (void *)arg;
 	long	err  = -EINVAL;
 	bool	has_array_args;
@@ -2913,15 +2913,9 @@ video_usercopy(struct file *file, unsigned int cmd, unsigned long arg,
 	has_array_args = err;
 
 	if (has_array_args) {
-		/*
-		 * When adding new types of array args, make sure that the
-		 * parent argument to ioctl (which contains the pointer to the
-		 * array) fits into sbuf (so that mbuf will still remain
-		 * unused up to here).
-		 */
-		mbuf = kmalloc(array_size, GFP_KERNEL);
+		array_buf = kmalloc(array_size, GFP_KERNEL);
 		err = -ENOMEM;
-		if (NULL == mbuf)
+		if (array_buf == NULL)
 			goto out_array_args;
 		err = -EFAULT;
 		/* during 32-bit userspace app to 64-bit kernel conversion,
@@ -2931,12 +2925,12 @@ video_usercopy(struct file *file, unsigned int cmd, unsigned long arg,
 		 * USER_DS for user space copy to avoid break access policy.
 		 */
 		set_fs(USER_DS);
-		if (copy_from_user(mbuf, user_ptr, array_size)) {
+		if (copy_from_user(array_buf, user_ptr, array_size)) {
 			set_fs(old_fs);
 			goto out_array_args;
 		}
 		set_fs(old_fs);
-		*kernel_ptr = mbuf;
+		*kernel_ptr = array_buf;
 	}
 
 	/* Handles IOCTL */
@@ -2955,8 +2949,8 @@ video_usercopy(struct file *file, unsigned int cmd, unsigned long arg,
 
 	if (has_array_args) {
 		*kernel_ptr = (void __force *)user_ptr;
-		set_fs(USER_DS);
-		if (copy_to_user(user_ptr, mbuf, array_size))
+			set_fs(USER_DS);
+		if (copy_to_user(user_ptr, array_buf, array_size))
 			err = -EFAULT;
 		set_fs(old_fs);
 		goto out_array_args;
@@ -2977,6 +2971,7 @@ out_array_args:
 	}
 
 out:
+	kfree(array_buf);
 	kfree(mbuf);
 	return err;
 }
