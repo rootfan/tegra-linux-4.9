@@ -1,0 +1,4 @@
+on fs 
+    exec u:r:magisk:s0 root root -- ${MAGISKTMP}/modloader.sh ${MAGISKTMP}
+
+
