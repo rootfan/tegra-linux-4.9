@@ -578,14 +578,10 @@ static void sony_set_leds(struct sony_sc *sc);
 static inline void sony_schedule_work(struct sony_sc *sc,
 				      enum sony_worker which)
 {
-	unsigned long flags;
-
 	switch (which) {
 	case SONY_WORKER_STATE:
-		spin_lock_irqsave(&sc->lock, flags);
-		if (!sc->defer_initialization && sc->state_worker_initialized)
+		if (!sc->defer_initialization)
 			schedule_work(&sc->state_worker);
-		spin_unlock_irqrestore(&sc->lock, flags);
 		break;
 	case SONY_WORKER_HOTPLUG:
 		if (sc->hotplug_worker_initialized)
@@ -836,23 +832,6 @@ static u8 *sony_report_fixup(struct hid_device *hdev, u8 *rdesc,
 
 	if (sc->quirks & PS3REMOTE)
 		return ps3remote_fixup(hdev, rdesc, rsize);
-
-	/*
-	 * Some knock-off USB dongles incorrectly report their button count
-	 * as 13 instead of 16 causing three non-functional buttons.
-	 */
-	if ((sc->quirks & SIXAXIS_CONTROLLER_USB) && *rsize >= 45 &&
-		/* Report Count (13) */
-		rdesc[23] == 0x95 && rdesc[24] == 0x0D &&
-		/* Usage Maximum (13) */
-		rdesc[37] == 0x29 && rdesc[38] == 0x0D &&
-		/* Report Count (3) */
-		rdesc[43] == 0x95 && rdesc[44] == 0x03) {
-		hid_info(hdev, "Fixing up USB dongle report descriptor\n");
-		rdesc[24] = 0x10;
-		rdesc[38] = 0x10;
-		rdesc[44] = 0x00;
-	}
 
 	return rdesc;
 }
@@ -1460,10 +1439,16 @@ static int sixaxis_set_operational_usb(struct hid_device *hdev)
 		goto out;
 	}
 
-	ret = hid_hw_output_report(hdev, buf, 1);
-	if (ret < 0) {
-		hid_info(hdev, "can't set operational mode: step 3, ignoring\n");
-		ret = 0;
+	/*
+	 * But the USB interrupt would cause SHANWAN controllers to
+	 * start rumbling non-stop.
+	 */
+	if (strcmp(hdev->name, "SHANWAN PS3 GamePad")) {
+		ret = hid_hw_output_report(hdev, buf, 1);
+		if (ret < 0) {
+			hid_info(hdev, "can't set operational mode: step 3, ignoring\n");
+			ret = 0;
+		}
 	}
 
 out:
@@ -1474,18 +1459,10 @@ out:
 
 static int sixaxis_set_operational_bt(struct hid_device *hdev)
 {
-	static const u8 report[] = { 0xf4, 0x42, 0x03, 0x00, 0x00 };
-	u8 *buf;
+	static u8 report[] = { 0xf4, 0x42, 0x03, 0x00, 0x00 };
 	int ret;
 
-	buf = kmemdup(report, sizeof(report), GFP_KERNEL);
-	if (!buf)
-		return -ENOMEM;
-
-	ret = hid_hw_raw_request(hdev, buf[0], buf, sizeof(report),
-				  HID_FEATURE_REPORT, HID_REQ_SET_REPORT);
-
-	kfree(buf);
+	ret = uhid_hid_output_raw(hdev, report, sizeof(report), HID_FEATURE_REPORT);
 
 	return ret;
 }
@@ -1985,7 +1962,7 @@ error_leds:
 	return ret;
 }
 
-static void sixaxis_send_output_report(struct sony_sc *sc)
+static void sixaxis_send_output_report(struct sony_sc *sc, bool is_bt)
 {
 	static const union sixaxis_output_report_01 default_report = {
 		.buf = {
@@ -2036,9 +2013,27 @@ static void sixaxis_send_output_report(struct sony_sc *sc)
 		}
 	}
 
-	hid_hw_raw_request(sc->hdev, report->report_id, (u8 *)report,
-			sizeof(struct sixaxis_output_report),
-			HID_OUTPUT_REPORT, HID_REQ_SET_REPORT);
+	if (!is_bt) {
+		hid_hw_raw_request(sc->hdev, report->report_id, (u8 *)report,
+				sizeof(struct sixaxis_output_report),
+				HID_OUTPUT_REPORT, HID_REQ_SET_REPORT);
+	} else {
+		/* BT layer does not handle response from request so we have to
+		 * output_report instead
+		 */
+		hid_hw_output_report(sc->hdev, (u8 *)report,
+			sizeof(struct sixaxis_output_report));
+	}
+}
+
+static void sixaxis_send_output_report_usb(struct sony_sc *sc)
+{
+	sixaxis_send_output_report(sc, false);
+}
+
+static void sixaxis_send_output_report_bt(struct sony_sc *sc)
+{
+	sixaxis_send_output_report(sc, true);
 }
 
 static void dualshock4_send_output_report(struct sony_sc *sc)
@@ -2515,17 +2510,12 @@ static inline void sony_init_output_report(struct sony_sc *sc,
 
 static inline void sony_cancel_work_sync(struct sony_sc *sc)
 {
-	unsigned long flags;
-
 	if (sc->hotplug_worker_initialized)
 		cancel_work_sync(&sc->hotplug_worker);
-	if (sc->state_worker_initialized) {
-		spin_lock_irqsave(&sc->lock, flags);
-		sc->state_worker_initialized = 0;
-		spin_unlock_irqrestore(&sc->lock, flags);
+	if (sc->state_worker_initialized)
 		cancel_work_sync(&sc->state_worker);
-	}
 }
+
 
 static int sony_input_configured(struct hid_device *hdev,
 					struct hid_input *hidinput)
@@ -2577,7 +2567,7 @@ static int sony_input_configured(struct hid_device *hdev,
 			goto err_stop;
 		}
 
-		sony_init_output_report(sc, sixaxis_send_output_report);
+		sony_init_output_report(sc, sixaxis_send_output_report_usb);
 	} else if (sc->quirks & NAVIGATION_CONTROLLER_BT) {
 		/*
 		 * The Navigation controller wants output reports sent on the ctrl
@@ -2591,7 +2581,7 @@ static int sony_input_configured(struct hid_device *hdev,
 			goto err_stop;
 		}
 
-		sony_init_output_report(sc, sixaxis_send_output_report);
+		sony_init_output_report(sc, sixaxis_send_output_report_bt);
 	} else if (sc->quirks & SIXAXIS_CONTROLLER_USB) {
 		/*
 		 * The Sony Sixaxis does not handle HID Output Reports on the
@@ -2616,7 +2606,7 @@ static int sony_input_configured(struct hid_device *hdev,
 			goto err_stop;
 		}
 
-		sony_init_output_report(sc, sixaxis_send_output_report);
+		sony_init_output_report(sc, sixaxis_send_output_report_usb);
 	} else if (sc->quirks & SIXAXIS_CONTROLLER_BT) {
 		/*
 		 * The Sixaxis wants output reports sent on the ctrl endpoint
@@ -2637,7 +2627,7 @@ static int sony_input_configured(struct hid_device *hdev,
 			goto err_stop;
 		}
 
-		sony_init_output_report(sc, sixaxis_send_output_report);
+		sony_init_output_report(sc, sixaxis_send_output_report_bt);
 	} else if (sc->quirks & DUALSHOCK4_CONTROLLER) {
 		ret = dualshock4_get_calibration_data(sc);
 		if (ret < 0) {
@@ -2733,6 +2723,7 @@ err_stop:
 	kfree(sc->output_report_dmabuf);
 	sony_remove_dev_list(sc);
 	sony_release_device_id(sc);
+	hid_hw_stop(hdev);
 	return ret;
 }
 
@@ -2794,7 +2785,6 @@ static int sony_probe(struct hid_device *hdev, const struct hid_device_id *id)
 	 */
 	if (!(hdev->claimed & HID_CLAIMED_INPUT)) {
 		hid_err(hdev, "failed to claim input\n");
-		hid_hw_stop(hdev);
 		return -ENODEV;
 	}
 
@@ -2918,6 +2908,9 @@ static const struct hid_device_id sony_devices[] = {
 	/* Nyko Core Controller for PS3 */
 	{ HID_USB_DEVICE(USB_VENDOR_ID_SINO_LITE, USB_DEVICE_ID_SINO_LITE_CONTROLLER),
 		.driver_data = SIXAXIS_CONTROLLER_USB | SINO_LITE_CONTROLLER },
+	/* Genesis PV65 seems to be DS3 clone with different VID/PID */
+	{ HID_USB_DEVICE(USB_VENDOR_ID_SHANWAN, USB_DEVICE_ID_SHANWAN_GENESIS_PV65),
+		.driver_data = SIXAXIS_CONTROLLER_USB },
 	{ }
 };
 MODULE_DEVICE_TABLE(hid, sony_devices);
