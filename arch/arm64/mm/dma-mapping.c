@@ -1936,13 +1936,6 @@ int arm_dma_get_sgtable(struct device *dev, struct sg_table *sgt,
 	}
 }
 
-static void dma_cache_maint_page(struct page *page, unsigned long offset,
-	size_t size, enum dma_data_direction dir,
-	void (*op)(const void *, size_t, int))
-{
-	op(page_address(page) + offset, size, dir);
-}
-
 /*
  * Make an area consistent for devices.
  * Note: Drivers should NOT use this function directly, as it will break
@@ -1952,13 +1945,13 @@ static void dma_cache_maint_page(struct page *page, unsigned long offset,
 static void __dma_page_cpu_to_dev(struct page *page, unsigned long off,
 	size_t size, enum dma_data_direction dir)
 {
-	dma_cache_maint_page(page, off, size, dir, __dma_map_area);
+	__dma_map_area(page_address(page) + off, size, dir);
 }
 
 static void __dma_page_dev_to_cpu(struct page *page, unsigned long off,
 	size_t size, enum dma_data_direction dir)
 {
-	dma_cache_maint_page(page, off, size, dir, __dma_unmap_area);
+	__dma_unmap_area(page_address(page) + off, size, dir);
 
 	/*
 	 * Mark the D-cache clean for this page to avoid extra flushing.
