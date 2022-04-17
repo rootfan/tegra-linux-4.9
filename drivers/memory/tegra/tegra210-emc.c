@@ -890,7 +890,7 @@ u32 tegra210_dll_prelock(struct emc_table *next_timing,
 	u32 dll_priv_updated;
 
 	dual_channel_lpddr4_case =
-		      !!(emc_readl(EMC_FBIO_CFG7) & EMC_FBIO_CFG7_CH1_ENABLE) &
+		      !!(emc_readl(EMC_FBIO_CFG7) & EMC_FBIO_CFG7_CH1_ENABLE) &&
 		      !!(emc_readl(EMC_FBIO_CFG7) & EMC_FBIO_CFG7_CH0_ENABLE);
 
 	emc_dig_dll_status = 0;
