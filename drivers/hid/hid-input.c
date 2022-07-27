@@ -324,9 +324,6 @@ static const struct hid_device_id hid_battery_quirks[] = {
 	{ HID_BLUETOOTH_DEVICE(USB_VENDOR_ID_ELECOM,
 		USB_DEVICE_ID_ELECOM_BM084),
 	  HID_BATTERY_QUIRK_IGNORE },
-	{ HID_USB_DEVICE(USB_VENDOR_ID_SYMBOL,
-		USB_DEVICE_ID_SYMBOL_SCANNER_3),
-	  HID_BATTERY_QUIRK_IGNORE },
 	{}
 };
 
@@ -417,6 +414,8 @@ static int hidinput_get_battery_property(struct power_supply *psy,
 
 		if (!dev->battery_reported)
 			val->intval = POWER_SUPPLY_STATUS_UNKNOWN;
+		else if (dev->battery_capacity == 100)
+			val->intval = POWER_SUPPLY_STATUS_FULL;
 		else
 			val->intval = POWER_SUPPLY_STATUS_DISCHARGING;
 		break;
@@ -518,21 +517,15 @@ static void hidinput_cleanup_battery(struct hid_device *dev)
 
 static void hidinput_update_battery(struct hid_device *dev, int value)
 {
-	int capacity;
-
 	if (!dev->battery)
 		return;
 
 	if (value == 0 || value < dev->battery_min || value > dev->battery_max)
 		return;
 
-	capacity = hidinput_scale_battery_capacity(dev, value);
-
-	if (!dev->battery_reported || capacity != dev->battery_capacity) {
-		dev->battery_capacity = capacity;
-		dev->battery_reported = true;
-		power_supply_changed(dev->battery);
-	}
+	dev->battery_capacity = hidinput_scale_battery_capacity(dev, value);
+	dev->battery_reported = true;
+	power_supply_changed(dev->battery);
 }
 #else  /* !CONFIG_HID_BATTERY_STRENGTH */
 static int hidinput_setup_battery(struct hid_device *dev, unsigned report_type,
@@ -658,14 +651,6 @@ static void hidinput_configure_usage(struct hid_input *hidinput, struct hid_fiel
 			case 0xe: map_key_clear(KEY_POWER2); break;
 			case 0xf: map_key_clear(KEY_RESTART); break;
 			default: goto unknown;
-			}
-			break;
-		}
-
-		if ((usage->hid & 0xf0) == 0xb0) {	/* SC - Display */
-			switch (usage->hid & 0xf) {
-			case 0x05: map_key_clear(KEY_SWITCHVIDEOMODE); break;
-			default: goto ignore;
 			}
 			break;
 		}
@@ -870,10 +855,6 @@ static void hidinput_configure_usage(struct hid_input *hidinput, struct hid_fiel
 		case 0x074: map_key_clear(KEY_BRIGHTNESS_MAX);		break;
 		case 0x075: map_key_clear(KEY_BRIGHTNESS_AUTO);		break;
 
-		case 0x079: map_key_clear(KEY_KBDILLUMUP);	break;
-		case 0x07a: map_key_clear(KEY_KBDILLUMDOWN);	break;
-		case 0x07c: map_key_clear(KEY_KBDILLUMTOGGLE);	break;
-
 		case 0x082: map_key_clear(KEY_VIDEO_NEXT);	break;
 		case 0x083: map_key_clear(KEY_LAST);		break;
 		case 0x084: map_key_clear(KEY_ENTER);		break;
@@ -997,16 +978,12 @@ static void hidinput_configure_usage(struct hid_input *hidinput, struct hid_fiel
 		case 0x28b: map_key_clear(KEY_FORWARDMAIL);	break;
 		case 0x28c: map_key_clear(KEY_SEND);		break;
 
-		case 0x2a2: map_key_clear(KEY_ALL_APPLICATIONS);	break;
-
 		case 0x2c7: map_key_clear(KEY_KBDINPUTASSIST_PREV);		break;
 		case 0x2c8: map_key_clear(KEY_KBDINPUTASSIST_NEXT);		break;
 		case 0x2c9: map_key_clear(KEY_KBDINPUTASSIST_PREVGROUP);		break;
 		case 0x2ca: map_key_clear(KEY_KBDINPUTASSIST_NEXTGROUP);		break;
 		case 0x2cb: map_key_clear(KEY_KBDINPUTASSIST_ACCEPT);	break;
 		case 0x2cc: map_key_clear(KEY_KBDINPUTASSIST_CANCEL);	break;
-
-		case 0x29f: map_key_clear(KEY_SCALE);		break;
 
 		default: map_key_clear(KEY_UNKNOWN);
 		}
@@ -1093,16 +1070,9 @@ mapped:
 	/* Mapping failed, bail out */
 	if (!bit)
 		return;
-
-	if (device->driver->input_mapped &&
-	    device->driver->input_mapped(device, hidinput, field, usage,
-					 &bit, &max) < 0) {
-		/*
-		 * The driver indicated that no further generic handling
-		 * of the usage is desired.
-		 */
-		return;
-	}
+	if (device->driver->input_mapped && device->driver->input_mapped(device,
+				hidinput, field, usage, &bit, &max) < 0)
+		goto ignore;
 
 	set_bit(usage->type, input->evbit);
 
@@ -1160,11 +1130,9 @@ mapped:
 		set_bit(MSC_SCAN, input->mscbit);
 	}
 
+ignore:
 	return;
 
-ignore:
-	usage->type = 0;
-	usage->code = 0;
 }
 
 void hidinput_hid_event(struct hid_device *hid, struct hid_field *field, struct hid_usage *usage, __s32 value)
@@ -1287,7 +1255,7 @@ void hidinput_hid_event(struct hid_device *hid, struct hid_field *field, struct 
 
 	/* report the usage code as scancode if the key status has changed */
 	if (usage->type == EV_KEY &&
-	    (!test_bit(usage->code, input->key)) == value)
+	    (!test_bit(usage->code, input->key)) == (bool)value)
 		input_event(input, EV_MSC, MSC_SCAN, usage->hid);
 
 	input_event(input, usage->type, usage->code, value);
