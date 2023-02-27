@@ -646,9 +646,12 @@ static noinline int ntfs_get_block_vbo(struct inode *inode, u64 vbo,
 			bh->b_size = block_size;
 			off = vbo & (PAGE_SIZE - 1);
 			set_bh_page(bh, page, off);
-			err = bh_read(bh, 0);
-			if (err < 0)
+			ll_rw_block(REQ_OP_READ, 0, 1, &bh);
+			wait_on_buffer(bh);
+			if (!buffer_uptodate(bh)) {
+				err = -EIO;
 				goto out;
+			}
 			zero_user_segment(page, off + voff, off + block_size);
 		}
 	}
@@ -690,9 +693,8 @@ static sector_t ntfs_bmap(struct address_space *mapping, sector_t block)
 	return generic_block_bmap(mapping, block, ntfs_get_block_bmap);
 }
 
-static int ntfs_read_folio(struct file *file, struct folio *folio)
+static int ntfs_readpage(struct file *file, struct page *page)
 {
-	struct page *page = &folio->page;
 	int err;
 	struct address_space *mapping = page->mapping;
 	struct inode *inode = mapping->host;
@@ -716,37 +718,22 @@ static int ntfs_read_folio(struct file *file, struct folio *folio)
 	}
 
 	/* Normal + sparse files. */
-	return mpage_read_folio(folio, ntfs_get_block);
+	return mpage_readpage(page, ntfs_get_block);
 }
 
-static void ntfs_readahead(struct readahead_control *rac)
+static int ntfs_readpages(struct file *file, struct address_space *mapping,
+		struct list_head *pages, unsigned int nr_pages)
 {
-	struct address_space *mapping = rac->mapping;
 	struct inode *inode = mapping->host;
 	struct ntfs_inode *ni = ntfs_i(inode);
-	u64 valid;
-	loff_t pos;
 
-	if (is_resident(ni)) {
-		/* No readahead for resident. */
-		return;
-	}
+	if (is_resident(ni))
+		return 0;
 
-	if (is_compressed(ni)) {
-		/* No readahead for compressed. */
-		return;
-	}
+	if (is_compressed(ni))
+		return 0;
 
-	valid = ni->i_valid;
-	pos = readahead_pos(rac);
-
-	if (valid < i_size_read(inode) && pos <= valid &&
-	    valid < pos + readahead_length(rac)) {
-		/* Range cross 'valid'. Read it page by page. */
-		return;
-	}
-
-	mpage_readahead(rac, ntfs_get_block);
+	return mpage_readpages(mapping, pages, nr_pages, ntfs_get_block);
 }
 
 static int ntfs_get_block_direct_IO_R(struct inode *inode, sector_t iblock,
@@ -879,7 +866,8 @@ static int ntfs_get_block_write_begin(struct inode *inode, sector_t vbn,
 }
 
 int ntfs_write_begin(struct file *file, struct address_space *mapping,
-		     loff_t pos, u32 len, struct page **pagep, void **fsdata)
+			    loff_t pos, u32 len, u32 flags, struct page **pagep,
+			    void **fsdata)
 {
 	int err;
 	struct inode *inode = mapping->host;
@@ -888,7 +876,7 @@ int ntfs_write_begin(struct file *file, struct address_space *mapping,
 	*pagep = NULL;
 	if (is_resident(ni)) {
 		struct page *page = grab_cache_page_write_begin(
-			mapping, pos >> PAGE_SHIFT);
+			mapping, pos >> PAGE_SHIFT, flags);
 
 		if (!page) {
 			err = -ENOMEM;
@@ -910,7 +898,7 @@ int ntfs_write_begin(struct file *file, struct address_space *mapping,
 			goto out;
 	}
 
-	err = block_write_begin(mapping, pos, len, pagep,
+	err = block_write_begin(mapping, pos, len, flags, pagep,
 				ntfs_get_block_write_begin);
 
 out:
@@ -990,7 +978,7 @@ int reset_log_file(struct inode *inode)
 
 		len = pos + PAGE_SIZE > log_size ? (log_size - pos) : PAGE_SIZE;
 
-		err = block_write_begin(mapping, pos, len, &page,
+		err = block_write_begin(mapping, pos, len, 0, &page,
 					ntfs_get_block_write_begin);
 		if (err)
 			goto out;
@@ -1061,7 +1049,7 @@ int ntfs_flush_inodes(struct super_block *sb, struct inode *i1,
 	if (!ret && i2)
 		ret = writeback_inode(i2);
 	if (!ret)
-		ret = sync_blockdev_nowait(sb->s_bdev);
+		ret = filemap_flush(sb->s_bdev->bd_inode->i_mapping);
 	return ret;
 }
 
@@ -1178,8 +1166,7 @@ out:
 	return ERR_PTR(err);
 }
 
-struct inode *ntfs_create_inode(struct user_namespace *mnt_userns,
-				struct inode *dir, struct dentry *dentry,
+struct inode *ntfs_create_inode(struct inode *dir, struct dentry *dentry,
 				const struct cpu_str *uni, umode_t mode,
 				dev_t dev, const char *symname, u32 size,
 				struct ntfs_fnd *fnd)
@@ -1295,7 +1282,7 @@ struct inode *ntfs_create_inode(struct user_namespace *mnt_userns,
 		goto out3;
 	}
 	inode = &ni->vfs_inode;
-	inode_init_owner(mnt_userns, inode, dir, mode);
+	inode_init_owner(inode, dir, mode);
 	mode = inode->i_mode;
 
 	inode->i_atime = inode->i_mtime = inode->i_ctime = ni->i_crtime =
@@ -1593,8 +1580,8 @@ struct inode *ntfs_create_inode(struct user_namespace *mnt_userns,
 	}
 
 #ifdef CONFIG_NTFS3_FS_POSIX_ACL
-	if (!S_ISLNK(mode) && (sb->s_flags & SB_POSIXACL)) {
-		err = ntfs_init_acl(mnt_userns, inode, dir);
+	if (!S_ISLNK(mode) && (sb->s_flags & MS_POSIXACL)) {
+		err = ntfs_init_acl(inode, dir);
 		if (err)
 			goto out7;
 	} else
@@ -1644,7 +1631,8 @@ out4:
 	clear_rec_inuse(rec);
 	clear_nlink(inode);
 	ni->mi.dirty = false;
-	discard_new_inode(inode);
+	unlock_new_inode(inode);
+	iput(inode);
 out3:
 	ntfs_mark_rec_free(sbi, ino, false);
 
@@ -1936,6 +1924,7 @@ static const char *ntfs_get_link(struct dentry *de, struct inode *inode,
 
 // clang-format off
 const struct inode_operations ntfs_link_inode_operations = {
+	.readlink       = generic_readlink,
 	.get_link	= ntfs_get_link,
 	.setattr	= ntfs3_setattr,
 	.listxattr	= ntfs_listxattr,
@@ -1943,20 +1932,19 @@ const struct inode_operations ntfs_link_inode_operations = {
 };
 
 const struct address_space_operations ntfs_aops = {
-	.read_folio	= ntfs_read_folio,
-	.readahead	= ntfs_readahead,
+	.readpage	= ntfs_readpage,
+	.readpages	= ntfs_readpages,
 	.writepage	= ntfs_writepage,
 	.writepages	= ntfs_writepages,
 	.write_begin	= ntfs_write_begin,
 	.write_end	= ntfs_write_end,
 	.direct_IO	= ntfs_direct_IO,
 	.bmap		= ntfs_bmap,
-	.dirty_folio	= block_dirty_folio,
-	.invalidate_folio = block_invalidate_folio,
+	.set_page_dirty = __set_page_dirty_buffers,
 };
 
 const struct address_space_operations ntfs_aops_cmpr = {
-	.read_folio	= ntfs_read_folio,
-	.readahead	= ntfs_readahead,
+	.readpage	= ntfs_readpage,
+	.readpages	= ntfs_readpages,
 };
 // clang-format on

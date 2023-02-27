@@ -82,7 +82,6 @@ enum utf16_endian;
 // clang-format on
 
 struct ntfs_mount_options {
-	char *nls_name;
 	struct nls_table *nls;
 
 	kuid_t fs_uid;
@@ -349,6 +348,7 @@ struct ntfs_inode {
 	struct timespec64 i_crtime;
 
 	struct mutex ni_lock;
+	struct rw_semaphore i_mmap_sem;
 
 	/* File attributes from std. */
 	enum FILE_ATTRIBUTE std_fa;
@@ -485,12 +485,11 @@ bool dir_is_empty(struct inode *dir);
 extern const struct file_operations ntfs_dir_operations;
 
 /* Globals from file.c */
-int ntfs_getattr(struct user_namespace *mnt_userns, const struct path *path,
-		 struct kstat *stat, u32 request_mask, u32 flags);
+int ntfs_getattr(struct vfsmount *mnt, struct dentry *dentry,
+		 struct kstat *stat);
 void ntfs_sparse_cluster(struct inode *inode, struct page *page0, CLST vcn,
 			 CLST len);
-int ntfs3_setattr(struct user_namespace *mnt_userns, struct dentry *dentry,
-		  struct iattr *attr);
+int ntfs3_setattr(struct dentry *dentry, struct iattr *attr);
 int ntfs_file_open(struct inode *inode, struct file *file);
 int ntfs_fiemap(struct inode *inode, struct fiemap_extent_info *fieinfo,
 		__u64 start, __u64 len);
@@ -692,7 +691,8 @@ int reset_log_file(struct inode *inode);
 int ntfs_get_block(struct inode *inode, sector_t vbn,
 		   struct buffer_head *bh_result, int create);
 int ntfs_write_begin(struct file *file, struct address_space *mapping,
-		     loff_t pos, u32 len, struct page **pagep, void **fsdata);
+			    loff_t pos, u32 len, u32 flags, struct page **pagep,
+			    void **fsdata);
 int ntfs_write_end(struct file *file, struct address_space *mapping,
 		   loff_t pos, u32 len, u32 copied, struct page *page,
 		   void *fsdata);
@@ -701,8 +701,7 @@ int ntfs_sync_inode(struct inode *inode);
 int ntfs_flush_inodes(struct super_block *sb, struct inode *i1,
 		      struct inode *i2);
 int inode_write_data(struct inode *inode, const void *data, size_t bytes);
-struct inode *ntfs_create_inode(struct user_namespace *mnt_userns,
-				struct inode *dir, struct dentry *dentry,
+struct inode *ntfs_create_inode(struct inode *dir, struct dentry *dentry,
 				const struct cpu_str *uni, umode_t mode,
 				dev_t dev, const char *symname, u32 size,
 				struct ntfs_fnd *fnd);
@@ -843,18 +842,17 @@ int ntfs_cmp_names_cpu(const struct cpu_str *uni1, const struct le_str *uni2,
 /* globals from xattr.c */
 #ifdef CONFIG_NTFS3_FS_POSIX_ACL
 struct posix_acl *ntfs_get_acl(struct inode *inode, int type, bool rcu);
-int ntfs_set_acl(struct user_namespace *mnt_userns, struct inode *inode,
+int ntfs_set_acl(struct inode *inode,
 		 struct posix_acl *acl, int type);
-int ntfs_init_acl(struct user_namespace *mnt_userns, struct inode *inode,
+int ntfs_init_acl(struct inode *inode,
 		  struct inode *dir);
 #else
 #define ntfs_get_acl NULL
 #define ntfs_set_acl NULL
 #endif
 
-int ntfs_acl_chmod(struct user_namespace *mnt_userns, struct inode *inode);
-int ntfs_permission(struct user_namespace *mnt_userns, struct inode *inode,
-		    int mask);
+int ntfs_acl_chmod(struct inode *inode);
+int ntfs_permission(struct inode *inode,int mask);
 ssize_t ntfs_listxattr(struct dentry *dentry, char *buffer, size_t size);
 extern const struct xattr_handler *ntfs_xattr_handlers[];
 

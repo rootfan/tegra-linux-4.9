@@ -22,20 +22,20 @@ static int ntfs_ioctl_fitrim(struct ntfs_sb_info *sbi, unsigned long arg)
 {
 	struct fstrim_range __user *user_range;
 	struct fstrim_range range;
+	struct request_queue *q = bdev_get_queue(sbi->sb->s_bdev);
 	int err;
 
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
 
-	if (!bdev_max_discard_sectors(sbi->sb->s_bdev))
+	if (!blk_queue_discard(q))
 		return -EOPNOTSUPP;
 
 	user_range = (struct fstrim_range __user *)arg;
 	if (copy_from_user(&range, user_range, sizeof(range)))
 		return -EFAULT;
 
-	range.minlen = max_t(u32, range.minlen,
-			     bdev_discard_granularity(sbi->sb->s_bdev));
+	range.minlen = max_t(u32, range.minlen, q->limits.discard_granularity);
 
 	err = ntfs_trim_fs(sbi, &range);
 	if (err < 0)
@@ -70,25 +70,12 @@ static long ntfs_compat_ioctl(struct file *filp, u32 cmd, unsigned long arg)
 /*
  * ntfs_getattr - inode_operations::getattr
  */
-int ntfs_getattr(struct user_namespace *mnt_userns, const struct path *path,
-		 struct kstat *stat, u32 request_mask, u32 flags)
+int ntfs_getattr(struct vfsmount *mnt, struct dentry *dentry,
+		 struct kstat *stat)
 {
-	struct inode *inode = d_inode(path->dentry);
-	struct ntfs_inode *ni = ntfs_i(inode);
+	struct inode *inode = d_inode(dentry);
 
-	if (is_compressed(ni))
-		stat->attributes |= STATX_ATTR_COMPRESSED;
-
-	if (is_encrypted(ni))
-		stat->attributes |= STATX_ATTR_ENCRYPTED;
-
-	stat->attributes_mask |= STATX_ATTR_COMPRESSED | STATX_ATTR_ENCRYPTED;
-
-	generic_fillattr(mnt_userns, inode, stat);
-
-	stat->result_mask |= STATX_BTIME;
-	stat->btime = ni->i_crtime;
-	stat->blksize = ni->mi.sbi->cluster_size; /* 512, 1K, ..., 2M */
+	generic_fillattr(inode, stat);
 
 	return 0;
 }
@@ -156,7 +143,7 @@ static int ntfs_extend_initialized_size(struct file *file,
 		if (pos + len > new_valid)
 			len = new_valid - pos;
 
-		err = ntfs_write_begin(file, mapping, pos, len, &page, NULL);
+		err = ntfs_write_begin(file, mapping, pos, len, 0, &page, NULL);
 		if (err)
 			goto out;
 
@@ -242,7 +229,7 @@ static int ntfs_zero_range(struct inode *inode, u64 vbo, u64 vbo_to)
 				lock_buffer(bh);
 				bh->b_end_io = end_buffer_read_sync;
 				get_bh(bh);
-				submit_bh(REQ_OP_READ, bh);
+				submit_bh(REQ_OP_READ, 0, bh);
 
 				wait_on_buffer(bh);
 				if (!buffer_uptodate(bh)) {
@@ -580,7 +567,7 @@ static long ntfs_fallocate(struct file *file, int mode, loff_t vbo, loff_t len)
 	if (mode & (FALLOC_FL_PUNCH_HOLE | FALLOC_FL_COLLAPSE_RANGE |
 		    FALLOC_FL_INSERT_RANGE)) {
 		inode_dio_wait(inode);
-		filemap_invalidate_lock(mapping);
+		down_write(&ni->i_mmap_sem);
 		map_locked = true;
 	}
 
@@ -741,7 +728,7 @@ static long ntfs_fallocate(struct file *file, int mode, loff_t vbo, loff_t len)
 
 out:
 	if (map_locked)
-		filemap_invalidate_unlock(mapping);
+		up_write(&ni->i_mmap_sem);
 
 	if (!err) {
 		inode->i_ctime = inode->i_mtime = current_time(inode);
@@ -755,8 +742,7 @@ out:
 /*
  * ntfs3_setattr - inode_operations::setattr
  */
-int ntfs3_setattr(struct user_namespace *mnt_userns, struct dentry *dentry,
-		  struct iattr *attr)
+int ntfs3_setattr(struct dentry *dentry, struct iattr *attr)
 {
 	struct super_block *sb = dentry->d_sb;
 	struct ntfs_sb_info *sbi = sb->s_fs_info;
@@ -774,7 +760,7 @@ int ntfs3_setattr(struct user_namespace *mnt_userns, struct dentry *dentry,
 		ia_valid = attr->ia_valid;
 	}
 
-	err = setattr_prepare(mnt_userns, dentry, attr);
+	err = setattr_prepare(dentry, attr);
 	if (err)
 		goto out;
 
@@ -799,10 +785,10 @@ int ntfs3_setattr(struct user_namespace *mnt_userns, struct dentry *dentry,
 		ni->ni_flags |= NI_FLAG_UPDATE_PARENT;
 	}
 
-	setattr_copy(mnt_userns, inode, attr);
+	setattr_copy(inode, attr);
 
 	if (mode != inode->i_mode) {
-		err = ntfs_acl_chmod(mnt_userns, inode);
+		err = ntfs_acl_chmod(inode);
 		if (err)
 			goto out;
 
@@ -1015,7 +1001,7 @@ static ssize_t ntfs_compress_write(struct kiocb *iocb, struct iov_iter *from)
 		frame_vbo = pos & ~(frame_size - 1);
 		index = frame_vbo >> PAGE_SHIFT;
 
-		if (unlikely(fault_in_iov_iter_readable(from, bytes))) {
+		if (unlikely(iov_iter_fault_in_readable(from, bytes))) {
 			err = -EFAULT;
 			goto out;
 		}
@@ -1054,8 +1040,8 @@ static ssize_t ntfs_compress_write(struct kiocb *iocb, struct iov_iter *from)
 			size_t cp, tail = PAGE_SIZE - off;
 
 			page = pages[ip];
-			cp = copy_page_from_iter_atomic(page, off,
-							min(tail, bytes), from);
+			cp = iov_iter_copy_from_user_atomic(page, from, off,
+							    min(tail, bytes));
 			flush_dcache_page(page);
 
 			copied += cp;
@@ -1140,11 +1126,8 @@ static ssize_t ntfs_file_write_iter(struct kiocb *iocb, struct iov_iter *from)
 		return -EOPNOTSUPP;
 	}
 
-	if (!inode_trylock(inode)) {
-		if (iocb->ki_flags & IOCB_NOWAIT)
-			return -EAGAIN;
+	if (!inode_trylock(inode))
 		inode_lock(inode);
-	}
 
 	ret = generic_write_checks(iocb, from);
 	if (ret <= 0)
@@ -1236,9 +1219,8 @@ int ntfs_fiemap(struct inode *inode, struct fiemap_extent_info *fieinfo,
 	int err;
 	struct ntfs_inode *ni = ntfs_i(inode);
 
-	err = fiemap_prep(inode, fieinfo, start, &len, ~FIEMAP_FLAG_XATTR);
-	if (err)
-		return err;
+	if (fieinfo->fi_flags & FIEMAP_FLAG_XATTR)
+		return -EOPNOTSUPP;
 
 	ni_lock(ni);
 

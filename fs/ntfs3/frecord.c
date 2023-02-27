@@ -7,7 +7,6 @@
 
 #include <linux/fiemap.h>
 #include <linux/fs.h>
-#include <linux/minmax.h>
 #include <linux/vmalloc.h>
 
 #include "debug.h"
@@ -3234,7 +3233,7 @@ int ni_write_inode(struct inode *inode, int sync, const char *hint)
 	struct rb_node *node, *next;
 	struct NTFS_DUP_INFO dup;
 
-	if (is_bad_inode(inode) || sb_rdonly(sb))
+	if (is_bad_inode(inode) || (sb->s_flags & MS_RDONLY))
 		return 0;
 
 	if (!ni_trylock(ni)) {
@@ -3285,7 +3284,7 @@ int ni_write_inode(struct inode *inode, int sync, const char *hint)
 		if (!ntfs_is_meta_file(sbi, inode->i_ino) &&
 		    (modified || (ni->ni_flags & NI_FLAG_UPDATE_PARENT))
 		    /* Avoid __wait_on_freeing_inode(inode). */
-		    && (sb->s_flags & SB_ACTIVE)) {
+		    && (sb->s_flags & MS_ACTIVE)) {
 			dup.cr_time = std->cr_time;
 			/* Not critical if this function fail. */
 			re_dirty = ni_update_parent(ni, &dup, sync);

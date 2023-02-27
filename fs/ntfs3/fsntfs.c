@@ -309,7 +309,7 @@ int ntfs_loadlog_and_replay(struct ntfs_inode *ni, struct ntfs_sb_info *sbi)
 		goto out;
 	}
 
-	if (sb_rdonly(sb) || !initialized)
+	if ((sb->s_flags & MS_RDONLY) || !initialized)
 		goto out;
 
 	/* Fill LogFile by '-1' if it is initialized. */
@@ -905,7 +905,7 @@ int ntfs_set_state(struct ntfs_sb_info *sbi, enum NTFS_DIRTY_FLAGS dirty)
 	 * Do not change state if fs already dirty(clear).
 	 * Do not change any thing if mounted read only.
 	 */
-	if (sbi->volume.real_dirty || sb_rdonly(sbi->sb))
+	if (sbi->volume.real_dirty || (sbi->sb->s_flags & MS_RDONLY))
 		return 0;
 
 	/* Check cached value. */
@@ -1021,7 +1021,7 @@ int ntfs_sb_write(struct super_block *sb, u64 lbo, size_t bytes,
 	u32 op = blocksize - off;
 	struct buffer_head *bh;
 
-	if (!wait && (sb->s_flags & SB_SYNCHRONOUS))
+	if (!wait && (sb->s_flags & MS_SYNCHRONOUS))
 		wait = 1;
 
 	for (; bytes; block += 1, off = 0, op = blocksize) {
@@ -1485,12 +1485,14 @@ int ntfs_bio_pages(struct ntfs_sb_info *sbi, const struct runs_tree *run,
 		lbo = ((u64)lcn << cluster_bits) + off;
 		len = ((u64)clen << cluster_bits) - off;
 new_bio:
-		new = bio_alloc(bdev, nr_pages - page_idx, op, GFP_NOFS);
+		new = bio_alloc(GFP_NOFS, nr_pages - page_idx);
 		if (bio) {
 			bio_chain(bio, new);
 			submit_bio(bio);
 		}
 		bio = new;
+		bio->bi_bdev = bdev;
+		bio->bi_opf = op;
 		bio->bi_iter.bi_sector = lbo >> 9;
 
 		while (len) {
@@ -1582,12 +1584,14 @@ int ntfs_bio_fill_1(struct ntfs_sb_info *sbi, const struct runs_tree *run)
 		lbo = (u64)lcn << cluster_bits;
 		len = (u64)clen << cluster_bits;
 new_bio:
-		new = bio_alloc(bdev, BIO_MAX_VECS, REQ_OP_WRITE, GFP_NOFS);
+		new = bio_alloc(GFP_NOFS, BIO_MAX_PAGES);
 		if (bio) {
 			bio_chain(bio, new);
 			submit_bio(bio);
 		}
 		bio = new;
+		bio->bi_bdev = bdev;
+		bio->bi_opf = REQ_OP_WRITE;
 		bio->bi_iter.bi_sector = lbo >> 9;
 
 		for (;;) {

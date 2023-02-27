@@ -16,6 +16,8 @@
 #include <linux/stddef.h>
 #include <linux/string.h>
 #include <linux/types.h>
+#include <linux/version.h>
+#include "compat.h"
 
 #include "debug.h"
 
