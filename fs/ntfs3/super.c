@@ -921,6 +921,7 @@ out:
 /*
  * ntfs_fill_super - Try to mount.
  */
+extern int exfat_fill_super(struct super_block *sb, void *data, int silent);
 static int ntfs_fill_super(struct super_block *sb, void *data, int silent)
 {
 	int err;
@@ -938,6 +939,17 @@ static int ntfs_fill_super(struct super_block *sb, void *data, int silent)
 	struct ATTR_DEF_ENTRY *t;
 	u16 *shared;
 	struct MFT_REF ref;
+	struct buffer_head *bh;
+
+	bh = ntfs_bread(sb, 0);
+	if (!bh)
+		return -EIO;
+
+	if (memcmp(((struct NTFS_BOOT *)bh->b_data)->system_id, "NTFS    ", sizeof("NTFS    ") - 1)){
+		brelse(bh);
+		return exfat_fill_super(sb, data, silent);
+	}
+	brelse(bh);
 
 	ref.high = 0;
 
@@ -1419,7 +1431,7 @@ static struct dentry *ntfs_mount(struct file_system_type *fs_type, int flags,
 // clang-format off
 static struct file_system_type ntfs_fs_type = {
 	.owner			= THIS_MODULE,
-	.name			= "ntfs3",
+	.name			= "ufsd",
 	.mount		        = ntfs_mount,
 	.kill_sb		= kill_block_super,
 	.fs_flags		= FS_REQUIRES_DEV,

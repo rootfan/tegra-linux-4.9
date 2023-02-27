@@ -705,7 +705,7 @@ free_bh:
 	return ret;
 }
 
-static int exfat_fill_super(struct super_block *sb, void *data, int silent)
+int exfat_fill_super(struct super_block *sb, void *data, int silent)
 {
 	struct exfat_sb_info *sbi;
 	struct exfat_mount_options *opts;
