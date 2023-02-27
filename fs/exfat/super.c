@@ -382,7 +382,7 @@ static int exfat_parse_options(struct super_block *sb, char *options, int silent
 		ret = __exfat_parse_option(sb, p, args, token, silent);
 		if (ret < 0) {
 			if (ret == -EINVAL && !silent) {
-				exfat_msg(sb, KERN_ERR,
+				exfat_warn(sb,
 					"unrecognized mount option \"%s\" "
 					"or missing value", p);
 			}

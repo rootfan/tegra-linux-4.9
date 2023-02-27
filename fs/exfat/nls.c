@@ -7,6 +7,7 @@
 #include <linux/slab.h>
 #include <linux/buffer_head.h>
 #include <asm/unaligned.h>
+#include <linux/vmalloc.h>
 
 #include "exfat_fs.h"
 
@@ -644,6 +645,15 @@ int exfat_nls_to_utf16(struct super_block *sb, const unsigned char *p_cstring,
 		return exfat_utf8_to_utf16(sb, p_cstring, len,
 				uniname, p_lossy);
 	return exfat_nls_to_ucs2(sb, p_cstring, len, uniname, p_lossy);
+}
+
+static void *kvcalloc(size_t n, size_t size, gfp_t flags)
+{
+	void *ret;
+	ret = kcalloc(n, size, flags | __GFP_NOWARN | __GFP_NORETRY);
+	if(ret || n*size <= PAGE_SIZE)
+		return ret;
+	return __vmalloc(n * size, flags, PAGE_KERNEL);
 }
 
 static int exfat_load_upcase_table(struct super_block *sb,
