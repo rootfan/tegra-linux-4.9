@@ -359,7 +359,7 @@ static int __exfat_parse_option(struct super_block *sb, char *p, substring_t *ar
 			exfat_warn(sb, "deprecated mount option \"%s\" ", p);
 		break;
 	default:
-		return -EINVAL;
+		return 0;
 	}
 
 	return 0;
